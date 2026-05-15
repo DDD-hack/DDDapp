@@ -1,32 +1,74 @@
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
-# Binaries for programs and plugins
+# ============================================================
+# Go (daemon/)
+# ============================================================
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-
-# Test binary, built with `go test -c`
 *.test
-
-# Code coverage profiles and other test artifacts
 *.out
 coverage.*
 *.coverprofile
 profile.cov
-
-# Dependency directories (remove the comment below to include it)
 # vendor/
-
-# Go workspace file
 go.work
 go.work.sum
+daemon/ddd.db
+daemon/ddd.db-shm
+daemon/ddd.db-wal
 
-# env file
+# ============================================================
+# Node.js (dashboard/ / vscode-ext/)
+# ============================================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp
+.pnp.js
+
+# Next.js
+dashboard/.next/
+dashboard/out/
+dashboard/.vercel
+
+# VS Code extension build
+vscode-ext/out/
+vscode-ext/dist/
+*.vsix
+
+# ============================================================
+# Swift / Xcode (companion/)
+# ============================================================
+companion/build/
+companion/*.xcodeproj/xcuserdata/
+companion/*.xcworkspace/xcuserdata/
+companion/*.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
+companion/DerivedData/
+companion/.swiftpm/
+*.resolved
+
+# ============================================================
+# Env / Secrets
+# ============================================================
 .env
+.env.local
+.env.*.local
+**/google-services.json
+**/*.pem
+**/*.p8
+**/*.p12
 
-# Editor/IDE
-# .idea/
-# .vscode/
+# ============================================================
+# Git hooks (generated, not tracked)
+# ============================================================
+.git/hooks/pre-commit
+
+# ============================================================
+# OS / Editor
+# ============================================================
+.DS_Store
+Thumbs.db
+.idea/
+# .vscode/  <- tracked for shared extension settings

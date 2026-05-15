@@ -1,0 +1,24 @@
+["dashboard:run"]
+dir         = "dashboard"
+description = "Next.js 開発サーバを起動します."
+run         = "bun run dev"
+
+["dashboard:build"]
+dir         = "dashboard"
+description = "Next.js をビルドします."
+run         = "bun run build"
+
+["dashboard:lint"]
+dir         = "dashboard"
+description = "Next.js を静的解析します."
+run         = "bun run lint"
+
+["dashboard:fmt"]
+dir         = "dashboard"
+description = "Next.js コードをフォーマットします."
+run         = "bun run format"
+
+["dashboard:deploy"]
+dir         = "dashboard"
+description = "Vercel にデプロイします."
+run         = "vercel --prod"

@@ -1,0 +1,19 @@
+["vscode-ext:build"]
+dir         = "vscode-ext"
+description = "VS Code 拡張をビルドします."
+run         = "bun run compile"
+
+["vscode-ext:watch"]
+dir         = "vscode-ext"
+description = "VS Code 拡張をウォッチモードでビルドします."
+run         = "bun run watch"
+
+["vscode-ext:package"]
+dir         = "vscode-ext"
+description = "VS Code 拡張を .vsix にパッケージします."
+run         = "bunx vsce package"
+
+["vscode-ext:lint"]
+dir         = "vscode-ext"
+description = "VS Code 拡張を静的解析します."
+run         = "bun run lint"

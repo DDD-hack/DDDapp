@@ -1,0 +1,19 @@
+[tools]
+go       = "1.25.6"
+node     = "24.2.0"
+bun      = "latest"
+firebase = "15.15.0"
+# gh は Homebrew 管理 (mise の attestation 検証が不安定なため)
+
+[task_config]
+includes = [
+  "tasks/daemon.toml",
+  "tasks/dashboard.toml",
+  "tasks/vscode-ext.toml",
+  "tasks/hooks.toml",
+]
+
+[env]
+DDD_DAEMON_PORT   = "8765"
+DDD_THRESHOLD_BPM = "120"
+_.file            = ".env"

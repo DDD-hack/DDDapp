@@ -1,0 +1,26 @@
+["daemon:run"]
+dir         = "daemon"
+description = "Daemon を起動します."
+run         = "go run ./cmd/ddd/..."
+
+["daemon:build"]
+dir         = "daemon"
+description = "Daemon をビルドします."
+run         = "go build -o ../bin/ddd ./cmd/ddd/..."
+
+["daemon:fmt"]
+dir         = "daemon"
+description = "Go コードをフォーマットします."
+run         = "gofmt -w ."
+
+["daemon:lint"]
+dir         = "daemon"
+description = "Go コードを静的解析します."
+run         = """
+go vet ./...
+"""
+
+["daemon:test"]
+dir         = "daemon"
+description = "Go テストを実行します."
+run         = "go test ./..."
