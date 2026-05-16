@@ -1,0 +1,76 @@
+# CodeRabbit 設定ファイル
+# https://docs.coderabbit.ai/getting-started/configure-coderabbit
+
+language: ja-JP
+
+reviews:
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: true
+  review_status: true
+  collapse_walkthrough: false
+
+  auto_review:
+    enabled: true
+    base_branches:
+      - main
+
+  path_filters:
+    - "!go.sum"
+    - "!**/bun.lock"
+    - "!**/.next/**"
+    - "!**/node_modules/**"
+
+  path_instructions:
+    - path: "daemon/**/*.go"
+      instructions: |
+        - `gofmt` / `go vet` の規約に準拠しているか確認する
+        - エラーを握りつぶしていないか（`_ = err` 等）
+        - `context.Context` が適切に伝播されているか
+        - goroutine リークの可能性がないか
+
+    - path: "daemon/internal/api/**/*.go"
+      instructions: |
+        - リクエストのバリデーションが適切か
+        - レスポンスの形式が他のハンドラーと統一されているか
+        - エラー時に適切な HTTP ステータスコードを返しているか
+        - `echo.Context` の扱い方が他のハンドラーと一貫しているか
+
+    - path: "daemon/internal/hrm/**/*.go"
+      instructions: |
+        - 心拍数の計算・判定ロジックに数値的な誤りがないか
+        - BPM のしきい値（`DDD_THRESHOLD_BPM`）を直接ハードコードしていないか
+        - HTTP やストレージの関心事が混入していないか
+
+    - path: "daemon/internal/store/**/*.go"
+      instructions: |
+        - データの読み書きでエラーが適切にハンドリングされているか
+        - 競合状態（race condition）が発生しうる箇所がないか
+
+    - path: "dashboard/**/*.{ts,tsx}"
+      instructions: |
+        - `any` 型を使用していないか（`unknown` で代替できないか確認する）
+        - Server Component と Client Component の境界が適切か（不必要な `"use client"` がないか）
+        - 環境変数は `NEXT_PUBLIC_` プレフィックスのルールに従っているか
+
+    - path: "vscode-ext/src/**/*.ts"
+      instructions: |
+        - `activate` / `deactivate` で確保したリソースが `context.subscriptions` に登録・破棄されているか
+        - VS Code API の非推奨メソッドを使っていないか
+        - daemon との通信エラー時に適切なユーザー通知（`vscode.window.showErrorMessage` 等）があるか
+
+    - path: "mise.toml"
+      instructions: |
+        - 新しいタスクが追加された場合、対応する tasks/*.toml にも反映されているか確認する
+
+  finishing_touches:
+    docstrings:
+      enabled: false
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  learnings:
+    scope: auto
+  opt_out: false
