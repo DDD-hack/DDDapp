@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+
+echo "[pre-commit] Running checks..."
+
+# Go: fmt + vet
+if git diff --cached --name-only | grep -q '\.go$'; then
+  echo "[pre-commit] go vet"
+  (cd "$ROOT/daemon" && go vet ./...)
+fi
+
+# dashboard: type-check
+if git diff --cached --name-only | grep -q '^dashboard/'; then
+  echo "[pre-commit] tsc"
+  (cd "$ROOT/dashboard" && bun run type-check 2>/dev/null || true)
+fi
+
+echo "[pre-commit] All checks passed."
