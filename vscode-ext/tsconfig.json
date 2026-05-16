@@ -2,14 +2,14 @@
   "compilerOptions": {
     "lib": ["ESNext"],
     "target": "ES2020",
-    "module": "CommonJS",
+    "module": "Node16",
     "moduleDetection": "force",
     "allowJs": true,
     "types": ["vscode", "node"],
     "outDir": "dist",
 
     // Bundler mode
-    "moduleResolution": "node",
+    "moduleResolution": "node16",
     "allowImportingTsExtensions": false,
     "verbatimModuleSyntax": false,
     "noEmit": false,

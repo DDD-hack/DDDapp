@@ -1,0 +1,29 @@
+name: Dashboard Lint
+
+on:
+  pull_request:
+    paths:
+      - "dashboard/**"
+      - "tasks/dashboard.toml"
+      - "mise.toml"
+      - ".github/workflows/dashboard-lint.yml"
+  push:
+    branches: [main]
+    paths:
+      - "dashboard/**"
+      - "tasks/dashboard.toml"
+      - "mise.toml"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          install: true
+          cache: true
+      - name: Install dependencies
+        run: bun install
+        working-directory: dashboard
+      - run: mise run dashboard:lint
