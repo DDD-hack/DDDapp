@@ -9,9 +9,15 @@ import SwiftUI
 
 @main
 struct companionApp: App {
+    @StateObject private var healthKitManager = HealthKitManager()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(healthKitManager)
+                .onAppear {
+                    healthKitManager.requestAuthorizationIfNeeded()
+                }
         }
     }
 }
