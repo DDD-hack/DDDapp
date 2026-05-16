@@ -1,0 +1,26 @@
+name: VS Code Extension Lint
+
+on:
+  pull_request:
+    paths:
+      - "vscode-ext/**"
+      - "tasks/vscode-ext.toml"
+      - "mise.toml"
+      - ".github/workflows/vscode-ext-lint.yml"
+  push:
+    branches: [main]
+    paths:
+      - "vscode-ext/**"
+      - "tasks/vscode-ext.toml"
+      - "mise.toml"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          install: true
+          cache: true
+      - run: mise run vscode-ext:lint
