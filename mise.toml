@@ -11,6 +11,7 @@ includes = [
   "tasks/dashboard.toml",
   "tasks/vscode-ext.toml",
   "tasks/hooks.toml",
+  "tasks/companion.toml",
 ]
 
 [env]

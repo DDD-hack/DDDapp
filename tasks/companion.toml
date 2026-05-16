@@ -1,0 +1,41 @@
+["companion:build-sim"]
+dir         = "companion"
+description = "iPhone シミュレータ向けにビルドします（署名不要）."
+run         = """
+xcodebuild build \
+  -project companion.xcodeproj \
+  -scheme companion \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
+  2>&1
+"""
+
+["companion:build-device"]
+dir         = "companion"
+description = "実機（iPhone）向けにビルドします."
+run         = """
+xcodebuild build \
+  -project companion.xcodeproj \
+  -scheme companion \
+  -destination 'generic/platform=iOS' \
+  2>&1
+"""
+
+["companion:build-watch-sim"]
+dir         = "companion"
+description = "Apple Watch シミュレータ向けにビルドします."
+run         = """
+xcodebuild build \
+  -project companion.xcodeproj \
+  -scheme 'companion Watch App Watch App' \
+  -destination 'platform=watchOS Simulator,name=Apple Watch Series 10 (46mm)' \
+  2>&1
+"""
+
+["companion:clean"]
+dir         = "companion"
+description = "ビルドキャッシュを削除します."
+run         = """
+xcodebuild clean \
+  -project companion.xcodeproj \
+  -scheme companion
+"""
