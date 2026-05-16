@@ -1,14 +1,7 @@
 ["hooks:install"]
-description = "pre-commit hook をこのリポジトリにインストールします."
-run         = """
-cp hooks/pre-commit .git/hooks/pre-commit
-chmod +x .git/hooks/pre-commit
-echo "pre-commit hook installed."
-"""
+description = "ddd-hook を使った pre-commit hook をこのリポジトリにインストールします."
+run         = "dddd install-hook"
 
 ["hooks:uninstall"]
 description = "pre-commit hook をアンインストールします."
-run         = """
-rm -f .git/hooks/pre-commit
-echo "pre-commit hook removed."
-"""
+run         = "dddd uninstall-hook"

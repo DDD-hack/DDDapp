@@ -86,9 +86,18 @@ cd ../vscode-ext && bun install
 
 ### 5. Git hooks のインストール
 
+`ddd-hook` バイナリ（`dddd` とは独立した Go 製バイナリ）が `.git/hooks/pre-commit` へのラッパースクリプトを自動生成します。
+
 ```bash
+# まず daemon をビルドして dddd を PATH に通す
+mise run daemon:build
+export PATH="$PWD/bin:$PATH"
+
+# hook をインストール
 mise run hooks:install
 ```
+
+> **Daemon 未起動時の挙動:** Daemon がクラッシュ・未起動の場合でも commit はブロックされません（警告表示のみ）。ツール障害で開発が止まらないよう fail-open ポリシーを採用しています。
 
 ---
 
@@ -128,8 +137,8 @@ mise run vscode-ext:lint     # 静的解析
 ### Git hooks
 
 ```bash
-mise run hooks:install    # pre-commit hook をインストール
-mise run hooks:uninstall  # pre-commit hook をアンインストール
+mise run hooks:install    # ddd-hook による pre-commit hook をインストール (dddd install-hook)
+mise run hooks:uninstall  # pre-commit hook をアンインストール (dddd uninstall-hook)
 ```
 
 タスク一覧を確認したい場合:
