@@ -11,6 +11,7 @@
   "main": "./dist/extension.js",
   "scripts": {
     "compile": "bun build src/extension.ts --outdir dist --target node",
+    "lint": "tsc --noEmit",
     "package": "vsce package"
   },
   "devDependencies": {
