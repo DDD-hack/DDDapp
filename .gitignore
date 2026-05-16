@@ -45,6 +45,7 @@ vscode-ext/dist/
 companion/build/
 companion/*.xcodeproj/xcuserdata/
 companion/*.xcworkspace/xcuserdata/
+companion/*.xcodeproj/*.xcworkspace/xcuserdata/
 companion/*.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
 companion/DerivedData/
 companion/.swiftpm/
