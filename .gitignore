@@ -14,6 +14,7 @@ profile.cov
 # vendor/
 go.work
 go.work.sum
+/daemon/ddd
 daemon/ddd.db
 daemon/ddd.db-shm
 daemon/ddd.db-wal
