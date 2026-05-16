@@ -1,0 +1,24 @@
+{
+  "name": "ddd-vscode",
+  "displayName": "DDD",
+  "description": "DDD companion VS Code extension",
+  "version": "0.0.1",
+  "private": true,
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "activationEvents": ["onStartupFinished"],
+  "main": "./dist/extension.js",
+  "scripts": {
+    "compile": "bun build src/extension.ts --outdir dist --target node",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/vscode": "^1.120.0",
+    "@vscode/vsce": "^3.9.1"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
