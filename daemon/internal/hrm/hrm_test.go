@@ -24,8 +24,12 @@ func TestAverage_EmptyBuffer(t *testing.T) {
 
 func TestAverage_CorrectMean(t *testing.T) {
 	buf := NewBuffer()
-	buf.Add(100)
-	buf.Add(200)
+	if err := buf.Add(100); err != nil {
+		t.Fatal(err)
+	}
+	if err := buf.Add(200); err != nil {
+		t.Fatal(err)
+	}
 	bpm, ok := buf.Average()
 	if !ok {
 		t.Fatal("want ok=true, got ok=false")
@@ -37,7 +41,9 @@ func TestAverage_CorrectMean(t *testing.T) {
 
 func TestAverage_SingleSample(t *testing.T) {
 	buf := NewBuffer()
-	buf.Add(120)
+	if err := buf.Add(120); err != nil {
+		t.Fatal(err)
+	}
 	bpm, ok := buf.Average()
 	if !ok {
 		t.Fatal("want ok=true, got ok=false")
@@ -47,12 +53,27 @@ func TestAverage_SingleSample(t *testing.T) {
 	}
 }
 
+func TestAdd_InvalidBPM(t *testing.T) {
+	buf := NewBuffer()
+	for _, bpm := range []int{0, -1, -100} {
+		if err := buf.Add(bpm); err == nil {
+			t.Fatalf("bpm=%d: want error, got nil", bpm)
+		}
+	}
+	// 不正値が追加されていないことを確認
+	_, ok := buf.Average()
+	if ok {
+		t.Fatal("不正な bpm が追加されている: want ok=false, got ok=true")
+	}
+}
+
 func TestAdd_StaleAfterWindow(t *testing.T) {
 	base := time.Now()
 	buf := &Buffer{now: fixedClock(base)}
 
-	// base 時点でサンプルを追加
-	buf.Add(150)
+	if err := buf.Add(150); err != nil {
+		t.Fatal(err)
+	}
 
 	// 時計を11秒後に進める
 	buf.now = fixedClock(base.Add(11 * time.Second))
@@ -67,7 +88,9 @@ func TestAdd_WithinWindow(t *testing.T) {
 	base := time.Now()
 	buf := &Buffer{now: fixedClock(base)}
 
-	buf.Add(130)
+	if err := buf.Add(130); err != nil {
+		t.Fatal(err)
+	}
 
 	// 9秒後はまだウィンドウ内
 	buf.now = fixedClock(base.Add(9 * time.Second))
@@ -82,11 +105,15 @@ func TestAdd_PrunesOldSamplesOnWrite(t *testing.T) {
 	base := time.Now()
 	buf := &Buffer{now: fixedClock(base)}
 
-	buf.Add(100) // base 時点
+	if err := buf.Add(100); err != nil {
+		t.Fatal(err)
+	}
 
 	// 11秒後に新しいサンプルを追加 → 古いサンプルは Add 時に削除される
 	buf.now = fixedClock(base.Add(11 * time.Second))
-	buf.Add(200)
+	if err := buf.Add(200); err != nil {
+		t.Fatal(err)
+	}
 
 	bpm, ok := buf.Average()
 	if !ok {
@@ -94,6 +121,18 @@ func TestAdd_PrunesOldSamplesOnWrite(t *testing.T) {
 	}
 	if bpm != 200 {
 		t.Fatalf("古いサンプルが残っている: want bpm=200, got bpm=%d", bpm)
+	}
+}
+
+func TestAdd_ZeroValueBuffer(t *testing.T) {
+	// NewBuffer() を使わずゼロ値でも panic しないことを確認
+	var buf Buffer
+	if err := buf.Add(100); err != nil {
+		t.Fatal(err)
+	}
+	_, ok := buf.Average()
+	if !ok {
+		t.Fatal("want ok=true, got ok=false")
 	}
 }
 
@@ -106,7 +145,7 @@ func TestConcurrent_NoRaceCondition(t *testing.T) {
 		wg.Add(2)
 		go func(bpm int) {
 			defer wg.Done()
-			buf.Add(bpm)
+			_ = buf.Add(bpm)
 		}(i + 1)
 		go func() {
 			defer wg.Done()

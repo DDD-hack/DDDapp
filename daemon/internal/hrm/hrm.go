@@ -1,6 +1,7 @@
 package hrm
 
 import (
+	"fmt"
 	"sync"
 	"time"
 )
@@ -22,6 +23,14 @@ func NewBuffer() *Buffer {
 	return &Buffer{now: time.Now}
 }
 
+// nowTime returns b.now() with a nil-safe fallback to time.Now.
+func (b *Buffer) nowTime() time.Time {
+	if b.now == nil {
+		return time.Now()
+	}
+	return b.now()
+}
+
 // pruneLocked removes samples older than cutoff. Must be called with mu held.
 func (b *Buffer) pruneLocked(cutoff time.Time) {
 	i := 0
@@ -34,15 +43,16 @@ func (b *Buffer) pruneLocked(cutoff time.Time) {
 	b.samples = b.samples[:i]
 }
 
-func (b *Buffer) Add(bpm int) {
+func (b *Buffer) Add(bpm int) error {
 	if bpm <= 0 {
-		return
+		return fmt.Errorf("invalid bpm: %d", bpm)
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	now := b.now()
+	now := b.nowTime()
 	b.pruneLocked(now.Add(-windowDuration))
 	b.samples = append(b.samples, sample{bpm: bpm, recordedAt: now})
+	return nil
 }
 
 // Average returns the average BPM of samples within the last 10 seconds.
@@ -51,7 +61,7 @@ func (b *Buffer) Average() (int, bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	b.pruneLocked(b.now().Add(-windowDuration))
+	b.pruneLocked(b.nowTime().Add(-windowDuration))
 
 	if len(b.samples) == 0 {
 		return 0, false
