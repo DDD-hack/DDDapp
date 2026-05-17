@@ -17,9 +17,22 @@ type Buffer struct {
 	samples []sample
 }
 
+// pruneLocked removes samples older than cutoff. Must be called with mu held.
+func (b *Buffer) pruneLocked(cutoff time.Time) {
+	i := 0
+	for _, s := range b.samples {
+		if s.recordedAt.After(cutoff) {
+			b.samples[i] = s
+			i++
+		}
+	}
+	b.samples = b.samples[:i]
+}
+
 func (b *Buffer) Add(bpm int) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	b.pruneLocked(time.Now().Add(-windowDuration))
 	b.samples = append(b.samples, sample{bpm: bpm, recordedAt: time.Now()})
 }
 
@@ -29,22 +42,15 @@ func (b *Buffer) Average() (int, bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	cutoff := time.Now().Add(-windowDuration)
-	var recent []sample
-	for _, s := range b.samples {
-		if s.recordedAt.After(cutoff) {
-			recent = append(recent, s)
-		}
-	}
-	b.samples = recent
+	b.pruneLocked(time.Now().Add(-windowDuration))
 
-	if len(recent) == 0 {
+	if len(b.samples) == 0 {
 		return 0, false
 	}
 
 	sum := 0
-	for _, s := range recent {
+	for _, s := range b.samples {
 		sum += s.bpm
 	}
-	return sum / len(recent), true
+	return sum / len(b.samples), true
 }

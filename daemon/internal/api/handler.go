@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/kotaro/ddd/daemon/internal/hrm"
@@ -41,9 +42,13 @@ func (h *Handler) WS(c echo.Context) error {
 		}
 
 		var payload struct {
-			BPM int `json:"bpm"`
+			BPM       int    `json:"bpm"`
+			Timestamp string `json:"timestamp"`
 		}
 		if err := json.Unmarshal(message, &payload); err != nil {
+			continue
+		}
+		if _, err := time.Parse(time.RFC3339, payload.Timestamp); err != nil {
 			continue
 		}
 		if payload.BPM > 0 {
