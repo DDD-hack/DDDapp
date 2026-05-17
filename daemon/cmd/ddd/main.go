@@ -6,6 +6,7 @@ import (
 
 	"github.com/kotaro/ddd/daemon/internal/api"
 	"github.com/kotaro/ddd/daemon/internal/hrm"
+	"github.com/kotaro/ddd/daemon/internal/store"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/spf13/viper"
@@ -18,8 +19,14 @@ func main() {
 
 	port := viper.GetString("DAEMON_PORT")
 
+	db, err := store.Open()
+	if err != nil {
+		log.Fatalf("failed to open store: %v", err)
+	}
+	defer db.Close()
+
 	buf := hrm.NewBuffer()
-	h := api.NewHandler(buf)
+	h := api.NewHandler(buf, db)
 
 	e := echo.New()
 	e.Use(middleware.Logger())
