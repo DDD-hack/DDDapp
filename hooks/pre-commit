@@ -17,4 +17,12 @@ if git diff --cached --name-only | grep -q '^dashboard/'; then
   (cd "$ROOT/dashboard" && bun run type-check 2>/dev/null || true)
 fi
 
+# DDD heart rate check
+HOOK_BIN="$ROOT/bin/ddd-hook"
+if [ -f "$HOOK_BIN" ]; then
+  "$HOOK_BIN"
+else
+  echo "[pre-commit] ⚠ ddd-hook binary not found. Run: mise run hooks:build"
+fi
+
 echo "[pre-commit] All checks passed."
