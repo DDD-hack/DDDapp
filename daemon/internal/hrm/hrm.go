@@ -8,13 +8,18 @@ import (
 const windowDuration = 10 * time.Second
 
 type sample struct {
-	bpm       int
+	bpm        int
 	recordedAt time.Time
 }
 
 type Buffer struct {
 	mu      sync.Mutex
 	samples []sample
+	now     func() time.Time // テスト時に差し替えられる時計
+}
+
+func NewBuffer() *Buffer {
+	return &Buffer{now: time.Now}
 }
 
 // pruneLocked removes samples older than cutoff. Must be called with mu held.
@@ -30,10 +35,14 @@ func (b *Buffer) pruneLocked(cutoff time.Time) {
 }
 
 func (b *Buffer) Add(bpm int) {
+	if bpm <= 0 {
+		return
+	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.pruneLocked(time.Now().Add(-windowDuration))
-	b.samples = append(b.samples, sample{bpm: bpm, recordedAt: time.Now()})
+	now := b.now()
+	b.pruneLocked(now.Add(-windowDuration))
+	b.samples = append(b.samples, sample{bpm: bpm, recordedAt: now})
 }
 
 // Average returns the average BPM of samples within the last 10 seconds.
@@ -42,7 +51,7 @@ func (b *Buffer) Average() (int, bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	b.pruneLocked(time.Now().Add(-windowDuration))
+	b.pruneLocked(b.now().Add(-windowDuration))
 
 	if len(b.samples) == 0 {
 		return 0, false
