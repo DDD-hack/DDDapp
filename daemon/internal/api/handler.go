@@ -51,8 +51,9 @@ func (h *Handler) WS(c echo.Context) error {
 		if _, err := time.Parse(time.RFC3339, payload.Timestamp); err != nil {
 			continue
 		}
-		if payload.BPM > 0 {
-			h.buf.Add(payload.BPM)
+		if err := h.buf.Add(payload.BPM); err != nil {
+			c.Logger().Warnf("ws: %v", err)
+			continue
 		}
 	}
 	return nil

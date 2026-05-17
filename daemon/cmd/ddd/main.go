@@ -18,7 +18,7 @@ func main() {
 
 	port := viper.GetString("DAEMON_PORT")
 
-	buf := &hrm.Buffer{}
+	buf := hrm.NewBuffer()
 	h := api.NewHandler(buf)
 
 	e := echo.New()
