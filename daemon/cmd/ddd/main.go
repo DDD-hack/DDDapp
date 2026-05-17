@@ -23,7 +23,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to open store: %v", err)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("failed to close store: %v", err)
+		}
+	}()
 
 	buf := hrm.NewBuffer()
 	h := api.NewHandler(buf, db)

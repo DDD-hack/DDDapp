@@ -3,7 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
+	"net/url"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -16,8 +16,15 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		origin := r.Header.Get("Origin")
 		// iPhone native app sends no Origin header — allow empty.
-		// Browser-based callers must come from localhost.
-		return origin == "" || strings.HasPrefix(origin, "http://localhost")
+		if origin == "" {
+			return true
+		}
+		u, err := url.Parse(origin)
+		if err != nil {
+			return false
+		}
+		host := u.Hostname()
+		return host == "localhost" || host == "127.0.0.1" || host == "::1"
 	},
 }
 
@@ -38,6 +45,8 @@ func (h *Handler) WS(c echo.Context) error {
 		return err
 	}
 	defer conn.Close()
+
+	ctx := c.Request().Context()
 
 	for {
 		_, message, err := conn.ReadMessage()
@@ -61,7 +70,7 @@ func (h *Handler) WS(c echo.Context) error {
 			c.Logger().Warnf("ws: %v", err)
 			continue
 		}
-		if err := h.db.SaveSample(payload.BPM, "apple_watch"); err != nil {
+		if err := h.db.SaveSample(ctx, payload.BPM, "apple_watch"); err != nil {
 			c.Logger().Warnf("ws: save sample: %v", err)
 		}
 	}

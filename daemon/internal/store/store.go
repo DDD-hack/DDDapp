@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -51,7 +52,9 @@ func Open() (*Store, error) {
 	db.SetMaxOpenConns(1)
 
 	if _, err := db.Exec(schema); err != nil {
-		db.Close()
+		if cerr := db.Close(); cerr != nil {
+			return nil, fmt.Errorf("init schema: %w; close db: %v", err, cerr)
+		}
 		return nil, fmt.Errorf("init schema: %w", err)
 	}
 
@@ -62,8 +65,8 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
-func (s *Store) SaveSample(bpm int, source string) error {
-	_, err := s.db.Exec(
+func (s *Store) SaveSample(ctx context.Context, bpm int, source string) error {
+	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO heart_rate_samples (bpm, recorded_at, source) VALUES (?, ?, ?)`,
 		bpm, time.Now().UTC(), source,
 	)
@@ -73,8 +76,8 @@ func (s *Store) SaveSample(bpm int, source string) error {
 	return nil
 }
 
-func (s *Store) SaveCommitAttempt(repoPath, commitHash string, bpm int, result string) error {
-	_, err := s.db.Exec(
+func (s *Store) SaveCommitAttempt(ctx context.Context, repoPath, commitHash string, bpm int, result string) error {
+	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO commit_attempts (repo_path, commit_hash, bpm_at_commit, result, attempted_at) VALUES (?, ?, ?, ?, ?)`,
 		repoPath, commitHash, bpm, result, time.Now().UTC(),
 	)
