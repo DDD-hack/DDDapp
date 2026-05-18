@@ -1,50 +1,69 @@
-//
-//  ContentView.swift
-//  companion
-//
-//  Created by 乙津孝太朗 on 2026/05/17.
-//
-
 import SwiftUI
-import HealthKit
 
 struct ContentView: View {
-    @EnvironmentObject private var healthKitManager: HealthKitManager
+    @EnvironmentObject private var connectivity: PhoneConnectivityManager
+    @EnvironmentObject private var daemonClient: DaemonWebSocketClient
+
+    @AppStorage("daemonHost") private var daemonHost = "192.168.1.1"
 
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "heart.fill")
-                .imageScale(.large)
-                .foregroundStyle(.red)
+        NavigationStack {
+            Form {
+                Section("Daemon 接続先") {
+                    HStack {
+                        TextField("IP アドレス", text: $daemonHost)
+                            .keyboardType(.decimalPad)
+                            .autocorrectionDisabled()
+                        Spacer()
+                        Button(daemonClient.isConnected ? "切断" : "接続") {
+                            if daemonClient.isConnected {
+                                daemonClient.disconnect()
+                            } else {
+                                daemonClient.connect(host: daemonHost)
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(daemonClient.isConnected ? .gray : .blue)
+                    }
+                }
 
-            Text(statusText)
-                .multilineTextAlignment(.center)
+                Section("Apple Watch") {
+                    HStack {
+                        Text("Watch")
+                        Spacer()
+                        Text(connectivity.isWatchReachable ? "接続中" : "未接続")
+                            .foregroundStyle(connectivity.isWatchReachable ? .green : .secondary)
+                    }
+                    HStack {
+                        Text("心拍数")
+                        Spacer()
+                        if connectivity.latestBPM > 0 {
+                            Text("\(connectivity.latestBPM) BPM")
+                                .foregroundStyle(.red)
+                                .fontWeight(.bold)
+                        } else {
+                            Text("--")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
 
-            if let error = healthKitManager.errorMessage {
-                Text(error)
-                    .foregroundStyle(.red)
-                    .font(.caption)
-                    .multilineTextAlignment(.center)
+                Section("ステータス") {
+                    HStack {
+                        Text("Daemon")
+                        Spacer()
+                        Text(daemonClient.isConnected ? "接続中" : "未接続")
+                            .foregroundStyle(daemonClient.isConnected ? .green : .secondary)
+                    }
+                }
             }
-        }
-        .padding()
-    }
-
-    private var statusText: String {
-        switch healthKitManager.authStatus {
-        case .sharingAuthorized:
-            return "HealthKit: 許可済み"
-        case .sharingDenied:
-            return "HealthKit: 拒否されました\n設定アプリから許可してください"
-        case .notDetermined:
-            return "HealthKit: 権限確認中..."
-        @unknown default:
-            return "HealthKit: 不明な状態"
+            .navigationTitle("DDD Companion")
         }
     }
 }
 
 #Preview {
     ContentView()
-        .environmentObject(HealthKitManager())
+        .environmentObject(PhoneConnectivityManager())
+        .environmentObject(DaemonWebSocketClient())
 }

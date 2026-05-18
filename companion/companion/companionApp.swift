@@ -1,22 +1,19 @@
-//
-//  companionApp.swift
-//  companion
-//
-//  Created by 乙津孝太朗 on 2026/05/17.
-//
-
 import SwiftUI
 
 @main
 struct companionApp: App {
-    @StateObject private var healthKitManager = HealthKitManager()
+    @StateObject private var connectivity = PhoneConnectivityManager()
+    @StateObject private var daemonClient = DaemonWebSocketClient()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environmentObject(healthKitManager)
+                .environmentObject(connectivity)
+                .environmentObject(daemonClient)
                 .onAppear {
-                    healthKitManager.requestAuthorizationIfNeeded()
+                    connectivity.onBPMReceived = { bpm in
+                        daemonClient.send(bpm: bpm)
+                    }
                 }
         }
     }
