@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"time"
 )
@@ -63,8 +64,21 @@ func main() {
 
 func printRejected(bpm, threshold int) {
 	fmt.Printf("\n%s💔  BPM: %d  —  Commit BLOCKED%s\n", colorRed, bpm, colorReset)
-	fmt.Printf("%s%s%s\n", colorRed, noPowerBanner, colorReset)
+	fmt.Printf("%s%s%s\n", colorRed, getBanner(), colorReset)
 	fmt.Printf("%s\n  🏃 Need %d+ BPM to commit. Go get your heart pumping!\n%s\n", colorRed, threshold, colorReset)
+}
+
+// getBanner returns an ASCII-only banner on Windows cmd.exe to avoid garbled output.
+func getBanner() string {
+	if runtime.GOOS == "windows" {
+		return `
+__   __  ___  _   _    ____  _____    _    ____
+\ \ / / / _ \| | | |  |  _ \| ____|  / \  |  _ \
+ \ V / | | | | | | |  | | | |  _|   / _ \ | | | |
+  | |  | |_| | |_| |  | |_| | |___ / ___ \| |_| |
+  |_|   \___/ \___/   |____/|_____/_/   \_\____/  . . .`
+	}
+	return noPowerBanner
 }
 
 type heartRateResponse struct {

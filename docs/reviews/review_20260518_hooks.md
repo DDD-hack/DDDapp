@@ -126,7 +126,7 @@ exit 1 のとき大きな ASCII アートと赤色で視覚的にインパクト
 
 ```toml
 # tasks/hooks.toml
-[tasks.hooks-build]
+["hooks:build"]
 description = "Build ddd-hook binary"
 run = "cd hooks && go build -o ../bin/ddd-hook ."
 ```

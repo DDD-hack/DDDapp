@@ -19,7 +19,7 @@ fi
 
 # DDD heart rate check
 HOOK_BIN="$ROOT/bin/ddd-hook"
-if [ -f "$HOOK_BIN" ]; then
+if [ -x "$HOOK_BIN" ]; then
   "$HOOK_BIN"
 else
   echo "[pre-commit] ⚠ ddd-hook binary not found. Run: mise run hooks:build"
