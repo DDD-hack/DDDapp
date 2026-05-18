@@ -38,8 +38,11 @@ func Open() (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get home dir: %w", err)
 	}
+	return OpenAt(filepath.Join(home, ".ddd"))
+}
 
-	dir := filepath.Join(home, ".ddd")
+// OpenAt opens (or creates) a Store rooted at dir. Exposed for tests.
+func OpenAt(dir string) (*Store, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("create dir %s: %w", dir, err)
 	}
