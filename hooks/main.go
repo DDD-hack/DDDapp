@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"os"
 	"runtime"
@@ -62,10 +63,39 @@ func main() {
 	}
 }
 
+var heartRateTips = []string{
+	"階段ダッシュ                    +60 bpm（推奨）",
+	"締切ギリギリ駆動                +40 bpm",
+	"上司からのSlack通知             +35 bpm",
+	"コーヒー10杯                    +25 bpm",
+	"本番環境に直接デプロイ          +80 bpm",
+	"git push --force origin main    +75 bpm",
+	"「もうすぐ終わります」と宣言    +50 bpm",
+	"エナジードリンク3本             +40 bpm",
+	"merge conflict を手動解決       +30 bpm",
+	"テストなしで main にマージ      +65 bpm",
+	"深夜2時のデバッグセッション     +55 bpm",
+	"腕立て伏せ20回                  +45 bpm",
+	"スクワット30回                  +50 bpm",
+	"その場ダッシュ30秒              +65 bpm",
+	"腹筋50回                        +40 bpm",
+	"ジャンピングジャック20回        +55 bpm",
+	"廊下を全力ダッシュ              +80 bpm",
+}
+
 func printRejected(bpm, threshold int) {
 	fmt.Printf("\n%s💔  BPM: %d  —  Commit BLOCKED%s\n", colorRed, bpm, colorReset)
 	fmt.Printf("%s%s%s\n", colorRed, getBanner(), colorReset)
-	fmt.Printf("%s\n  🏃 Need %d+ BPM to commit. Go get your heart pumping!\n%s\n", colorRed, threshold, colorReset)
+	fmt.Printf("%s\n", colorRed)
+	fmt.Printf("  Heart rate : %d bpm\n", bpm)
+	fmt.Printf("  Threshold  : %d bpm\n", threshold)
+	fmt.Printf("  Reason     : 情熱が足りません。\n")
+	fmt.Printf("\n  心拍を上げる方法:\n")
+	tips := rand.Perm(len(heartRateTips))[:4]
+	for _, i := range tips {
+		fmt.Printf("  ・%s\n", heartRateTips[i])
+	}
+	fmt.Printf("%s\n", colorReset)
 }
 
 // getBanner returns an ASCII-only banner on Windows cmd.exe to avoid garbled output.
