@@ -101,6 +101,18 @@ mise run hooks:install
 
 ---
 
+## Windows での使用
+
+Git for Windows（Git Bash）または WSL をインストールしてください。
+Git for Windows をインストールすると Git Bash が自動でついてきます。
+
+- [Git for Windows](https://gitforwindows.org/)
+- [WSL セットアップガイド](https://learn.microsoft.com/ja-jp/windows/wsl/install)
+
+> **注意:** PowerShell / コマンドプロンプトでは pre-commit hook（Bash スクリプト）が動きません。Git Bash または WSL 上で git コマンドを実行してください。
+
+---
+
 ## タスク一覧
 
 mise のタスク機能でプロジェクト操作を統一管理しています。`mise run <タスク名>` で実行できます。

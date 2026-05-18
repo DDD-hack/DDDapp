@@ -1,7 +1,18 @@
+["hooks:build"]
+description = "ddd-hook バイナリをビルドします"
+run         = "cd hooks && go build -o ../bin/ddd-hook ."
+
 ["hooks:install"]
-description = "ddd-hook を使った pre-commit hook をこのリポジトリにインストールします."
-run         = "dddd install-hook"
+description = "pre-commit hook をインストールします"
+run         = """
+cp hooks/pre-commit .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+echo "✅ pre-commit hook installed"
+"""
 
 ["hooks:uninstall"]
-description = "pre-commit hook をアンインストールします."
-run         = "dddd uninstall-hook"
+description = "pre-commit hook をアンインストールします"
+run         = """
+rm -f .git/hooks/pre-commit
+echo "✅ pre-commit hook uninstalled"
+"""
