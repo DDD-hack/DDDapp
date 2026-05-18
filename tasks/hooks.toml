@@ -1,6 +1,12 @@
 ["hooks:build"]
+dir         = "hooks"
 description = "ddd-hook バイナリをビルドします"
-run         = "cd hooks && go build -o ../bin/ddd-hook ."
+run         = "go build -o ../bin/ddd-hook ."
+
+["hooks:lint"]
+dir         = "hooks"
+description = "hooks の静的解析を実行します"
+run         = "go vet ./..."
 
 ["hooks:install"]
 description = "pre-commit / prepare-commit-msg hook をインストールします"
