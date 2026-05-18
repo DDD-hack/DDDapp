@@ -26,7 +26,7 @@ const (
 	timeout          = 3 * time.Second
 	defaultThreshold = 120
 	minThreshold     = 40  // 医学的下限（アスリート・心疾患を考慮）
-	maxThreshold     = 250 // 人間の最大心拍数上限
+	maxThreshold     = 120 // hooks 契約: exit 1 は bpm < threshold の場合のみ
 )
 
 const noPowerBanner = `
@@ -44,7 +44,9 @@ func main() {
 	}
 
 	threshold := defaultThreshold
-	if n, ok := loadRCThreshold(); ok {
+	if n, ok, err := loadRCThreshold(); err != nil {
+		warn(fmt.Sprintf("⚠ failed to read ~/.ddddrc: %v", err))
+	} else if ok {
 		threshold = n
 	}
 	if v := os.Getenv("DDD_THRESHOLD_BPM"); v != "" {
@@ -176,15 +178,19 @@ func fetchHeartRate() (bpm int, status string, err error) {
 }
 
 // loadRCThreshold reads threshold_bpm from ~/.ddddrc.
-// Returns (value, true) if found, (0, false) if file absent or key missing.
-func loadRCThreshold() (int, bool) {
+// Returns (value, true, nil) if found, (0, false, nil) if file absent or key missing,
+// (0, false, err) on I/O or permission errors.
+func loadRCThreshold() (int, bool, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return 0, false
+		return 0, false, err
 	}
 	f, err := os.Open(filepath.Join(home, ".ddddrc"))
 	if err != nil {
-		return 0, false
+		if os.IsNotExist(err) {
+			return 0, false, nil
+		}
+		return 0, false, err
 	}
 	defer f.Close()
 
@@ -214,10 +220,13 @@ func loadRCThreshold() (int, bool) {
 				fmt.Fprintf(os.Stderr, "⚠ ~/.ddddrc: threshold_bpm=%d out of range [%d, %d], ignored\n", n, minThreshold, maxThreshold)
 				continue
 			}
-			return n, true
+			return n, true, nil
 		}
 	}
-	return 0, false
+	if err := scanner.Err(); err != nil {
+		return 0, false, err
+	}
+	return 0, false, nil
 }
 
 func warn(msg string) {
