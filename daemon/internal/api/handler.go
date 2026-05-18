@@ -88,6 +88,12 @@ func (h *Handler) PostCommit(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
 	}
+	if req.RepoPath == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "repo_path is required"})
+	}
+	if req.BPM <= 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "bpm must be greater than 0"})
+	}
 	if req.Result != "accepted" && req.Result != "rejected" {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "result must be accepted or rejected"})
 	}

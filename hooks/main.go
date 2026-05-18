@@ -56,11 +56,15 @@ func main() {
 	case "ok":
 		if bpm >= threshold {
 			fmt.Printf("%s🔥 BPM: %d — You're fired up! Commit allowed ✓%s\n", colorGreen, bpm, colorReset)
-			recordCommit(bpm, "accepted")
+			if err := recordCommit(bpm, "accepted"); err != nil {
+				warn(fmt.Sprintf("⚠ failed to record commit result: %v", err))
+			}
 			os.Exit(0)
 		}
 		printRejected(bpm, threshold)
-		recordCommit(bpm, "rejected")
+		if err := recordCommit(bpm, "rejected"); err != nil {
+			warn(fmt.Sprintf("⚠ failed to record commit result: %v", err))
+		}
 		os.Exit(1)
 	default:
 		warn("❓ Unexpected response from daemon — commit OK")
@@ -140,23 +144,30 @@ func warn(msg string) {
 	fmt.Printf("%s%s%s\n", colorYellow, msg, colorReset)
 }
 
-func recordCommit(bpm int, result string) {
+func recordCommit(bpm int, result string) error {
 	repoPath := ""
 	if out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output(); err == nil {
 		repoPath = strings.TrimSpace(string(out))
 	}
 
-	body, _ := json.Marshal(map[string]any{
+	body, err := json.Marshal(map[string]any{
 		"repo_path":   repoPath,
 		"commit_hash": "",
 		"bpm":         bpm,
 		"result":      result,
 	})
+	if err != nil {
+		return fmt.Errorf("marshal commit payload: %w", err)
+	}
 
 	client := &http.Client{Timeout: 1 * time.Second}
 	resp, err := client.Post("http://localhost:8765/commits", "application/json", bytes.NewReader(body))
 	if err != nil {
-		return
+		return fmt.Errorf("post commit record: %w", err)
 	}
-	resp.Body.Close()
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("post commit record: unexpected status %s", resp.Status)
+	}
+	return nil
 }
