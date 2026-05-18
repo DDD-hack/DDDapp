@@ -41,7 +41,7 @@ class DaemonWebSocketClient: NSObject, ObservableObject {
             guard let self else { return }
             switch result {
             case .success:
-                self.startReceiveLoop()
+                Task { @MainActor in self.startReceiveLoop() }
             case .failure:
                 Task { @MainActor in self.isConnected = false }
             }
