@@ -38,8 +38,20 @@ class WorkoutManager: NSObject, ObservableObject {
             workoutSession = session
             self.builder = builder
             session.startActivity(with: Date())
-            builder.beginCollection(withStart: Date()) { _, _ in }
-            isRunning = true
+            builder.beginCollection(withStart: Date()) { [weak self] success, error in
+                Task { @MainActor in
+                    guard let self else { return }
+                    if success {
+                        self.isRunning = true
+                        self.errorMessage = nil
+                    } else {
+                        self.errorMessage = "収集開始失敗: \(error?.localizedDescription ?? "unknown error")"
+                        self.workoutSession?.end()
+                        self.workoutSession = nil
+                        self.builder = nil
+                    }
+                }
+            }
         } catch {
             errorMessage = "ワークアウト開始失敗: \(error.localizedDescription)"
         }
