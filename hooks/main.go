@@ -63,7 +63,9 @@ func main() {
 		if bpm >= threshold {
 			fmt.Printf("%s🔥 BPM: %d — You're fired up! Commit allowed ✓%s\n", colorGreen, bpm, colorReset)
 			printECG(bpm)
-			storeBPMForTrailer(bpm)
+			if err := storeBPMForTrailer(bpm); err != nil {
+				warn(fmt.Sprintf("⚠ failed to store BPM for trailer: %v", err))
+			}
 			if err := recordCommit(bpm, "accepted"); err != nil {
 				warn(fmt.Sprintf("⚠ failed to record commit result: %v", err))
 			}
@@ -191,6 +193,9 @@ func termWidth() int {
 //	      /    \
 //	_____/      \______
 func buildECGRows(bpm, width int) [4][]byte {
+	if bpm <= 0 {
+		bpm = 1
+	}
 	const spikeW = 8
 	r0spike := "   /\\   " // 3sp /\ 3sp
 	r1spike := "  /  \\  " // 2sp / 2sp \ 2sp
@@ -257,15 +262,16 @@ func printECG(bpm int) {
 	fmt.Printf("%s\n\n", colorReset)
 }
 
-func storeBPMForTrailer(bpm int) {
+func storeBPMForTrailer(bpm int) error {
 	out, err := exec.Command("git", "rev-parse", "--git-dir").Output()
 	if err != nil {
-		return
+		return fmt.Errorf("resolve git-dir: %w", err)
 	}
 	bpmFile := filepath.Join(strings.TrimSpace(string(out)), "DDD_BPM")
 	if err := os.WriteFile(bpmFile, []byte(strconv.Itoa(bpm)), 0o644); err != nil {
-		fmt.Fprintf(os.Stderr, "⚠ failed to store BPM for trailer: %v\n", err)
+		return fmt.Errorf("write DDD_BPM: %w", err)
 	}
+	return nil
 }
 
 func recordCommit(bpm int, result string) error {
