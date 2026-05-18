@@ -2,7 +2,12 @@ import SwiftUI
 import HealthKit
 
 struct ContentView: View {
+    @EnvironmentObject private var watchManager: WatchConnectivityManager
     @EnvironmentObject private var healthKitManager: HealthKitManager
+
+    // WatchConnectivity優先、未接続時はHealthKitフォールバック
+    private var bpm: Double? { watchManager.currentBPM ?? healthKitManager.currentBPM }
+    private var lastUpdated: Date? { watchManager.lastUpdated ?? healthKitManager.lastUpdated }
 
     var body: some View {
         VStack(spacing: 24) {
@@ -21,7 +26,7 @@ struct ContentView: View {
                 .font(.system(size: 48))
                 .foregroundStyle(.red)
 
-            if let bpm = healthKitManager.currentBPM {
+            if let bpm = bpm {
                 Text("\(Int(bpm))")
                     .font(.system(size: 72, weight: .bold, design: .rounded))
                     .foregroundStyle(.primary)
@@ -37,7 +42,7 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
             }
 
-            if let updated = healthKitManager.lastUpdated {
+            if let updated = lastUpdated {
                 Text("最終取得: \(updated.formatted(.dateTime.hour().minute().second()))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -74,5 +79,6 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+        .environmentObject(WatchConnectivityManager())
         .environmentObject(HealthKitManager())
 }

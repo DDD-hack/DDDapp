@@ -8,17 +8,31 @@
 import SwiftUI
 
 struct ContentView: View {
-    var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
-    }
-}
+    @EnvironmentObject private var workoutManager: HeartRateWorkoutManager
 
-#Preview {
-    ContentView()
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "heart.fill")
+                .foregroundStyle(.red)
+
+            if workoutManager.currentBPM > 0 {
+                Text("\(Int(workoutManager.currentBPM))")
+                    .font(.system(size: 48, weight: .bold, design: .rounded))
+                Text("bpm")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("---")
+                    .font(.system(size: 48, weight: .bold, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+
+            if let error = workoutManager.errorMessage {
+                Text(error)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+            }
+        }
+    }
 }

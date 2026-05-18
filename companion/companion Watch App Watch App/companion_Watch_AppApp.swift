@@ -9,9 +9,19 @@ import SwiftUI
 
 @main
 struct companion_Watch_App_Watch_AppApp: App {
+    @StateObject private var workoutManager = HeartRateWorkoutManager()
+
+    init() {
+        WatchSessionManager.shared.setup()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(workoutManager)
+                .onAppear {
+                    workoutManager.requestAuthorizationAndStart()
+                }
         }
     }
 }
