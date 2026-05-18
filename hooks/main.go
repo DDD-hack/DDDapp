@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -34,6 +35,11 @@ const noPowerBanner = `
    ╚═╝    ╚═════╝  ╚═════╝     ╚═════╝ ╚══════╝╚═╝  ╚═╝╚═════╝ ╚═╝╚═╝╚═╝`
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "check" {
+		runCheck()
+		return
+	}
+
 	threshold := defaultThreshold
 	if v := os.Getenv("DDD_THRESHOLD_BPM"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
@@ -56,6 +62,8 @@ func main() {
 	case "ok":
 		if bpm >= threshold {
 			fmt.Printf("%s🔥 BPM: %d — You're fired up! Commit allowed ✓%s\n", colorGreen, bpm, colorReset)
+			printECG(bpm)
+			storeBPMForTrailer(bpm)
 			if err := recordCommit(bpm, "accepted"); err != nil {
 				warn(fmt.Sprintf("⚠ failed to record commit result: %v", err))
 			}
@@ -69,6 +77,23 @@ func main() {
 	default:
 		warn("❓ Unexpected response from daemon — commit OK")
 		os.Exit(0)
+	}
+}
+
+func runCheck() {
+	bpm, status, err := fetchHeartRate()
+	if err != nil {
+		warn("💤 Daemon offline — heart rate unavailable")
+		return
+	}
+	switch status {
+	case "stale":
+		warn("📡 No heart rate data (wake up Apple Watch!)")
+	case "ok":
+		fmt.Printf("%s♥ BPM: %d%s\n", colorGreen, bpm, colorReset)
+		printECG(bpm)
+	default:
+		warn("❓ Unexpected response from daemon")
 	}
 }
 
@@ -142,6 +167,105 @@ func fetchHeartRate() (bpm int, status string, err error) {
 
 func warn(msg string) {
 	fmt.Printf("%s%s%s\n", colorYellow, msg, colorReset)
+}
+
+func termWidth() int {
+	if s := os.Getenv("COLUMNS"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			return n
+		}
+	}
+	if out, err := exec.Command("tput", "cols").Output(); err == nil {
+		if n, err := strconv.Atoi(strings.TrimSpace(string(out))); err == nil && n > 0 {
+			return n
+		}
+	}
+	return 80
+}
+
+// buildECGRows generates a 4-row ECG waveform.
+// The spike rises from the baseline (row 3) up through rows 2, 1, 0.
+//
+//	        /\
+//	       /  \
+//	      /    \
+//	_____/      \______
+func buildECGRows(bpm, width int) [4][]byte {
+	const spikeW = 8
+	r0spike := "   /\\   " // 3sp /\ 3sp
+	r1spike := "  /  \\  " // 2sp / 2sp \ 2sp
+	r2spike := " /    \\ " // 1sp / 4sp \ 1sp
+	r3spike := "/      \\" // / 6sp \
+
+	period := width * 40 / bpm
+	if period < spikeW+8 {
+		period = spikeW + 8
+	}
+
+	flat := period - spikeW
+	before := flat * 2 / 3
+	after := flat - before
+
+	r0unit := strings.Repeat(" ", before) + r0spike + strings.Repeat(" ", after)
+	r1unit := strings.Repeat(" ", before) + r1spike + strings.Repeat(" ", after)
+	r2unit := strings.Repeat(" ", before) + r2spike + strings.Repeat(" ", after)
+	r3unit := strings.Repeat("_", before) + r3spike + strings.Repeat("_", after)
+
+	var sb0, sb1, sb2, sb3 strings.Builder
+	for sb0.Len() < width {
+		sb0.WriteString(r0unit)
+		sb1.WriteString(r1unit)
+		sb2.WriteString(r2unit)
+		sb3.WriteString(r3unit)
+	}
+
+	return [4][]byte{
+		[]byte(sb0.String())[:width],
+		[]byte(sb1.String())[:width],
+		[]byte(sb2.String())[:width],
+		[]byte(sb3.String())[:width],
+	}
+}
+
+func printECG(bpm int) {
+	const height = 4
+	width := termWidth()
+	rows := buildECGRows(bpm, width)
+
+	delay := time.Duration(1200/width) * time.Millisecond
+	if delay < 5*time.Millisecond {
+		delay = 5 * time.Millisecond
+	}
+
+	fmt.Printf("%s", colorGreen)
+	for c := 0; c < width; c++ {
+		if c > 0 {
+			fmt.Printf("\033[%dA\r", height-1)
+		}
+		for row := 0; row < height; row++ {
+			fmt.Printf("%s", rows[row][:c+1])
+			if c < width-1 {
+				fmt.Print(strings.Repeat(" ", width-c-1))
+			}
+			if row < height-1 {
+				fmt.Print("\n")
+			}
+		}
+		time.Sleep(delay)
+	}
+	// 空行を1行追加
+	fmt.Printf("%s\n\n", colorReset)
+}
+
+func storeBPMForTrailer(bpm int) {
+	out, err := exec.Command("git", "rev-parse", "--git-dir").Output()
+	if err != nil {
+		return
+	}
+	bpmFile := filepath.Join(strings.TrimSpace(string(out)), "DDD_BPM")
+	if err := os.WriteFile(bpmFile, []byte(strconv.Itoa(bpm)), 0o644); err != nil {
+		fmt.Fprintf(os.Stderr, "⚠ failed to store BPM for trailer: %v\n", err)
+	}
 }
 
 func recordCommit(bpm int, result string) error {
