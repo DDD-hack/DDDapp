@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -24,6 +25,8 @@ const (
 	daemonURL        = "http://localhost:8765/heartrate/current"
 	timeout          = 3 * time.Second
 	defaultThreshold = 120
+	minThreshold     = 40  // 医学的下限（アスリート・心疾患を考慮）
+	maxThreshold     = 120 // hooks 契約: exit 1 は bpm < threshold の場合のみ
 )
 
 const noPowerBanner = `
@@ -41,11 +44,18 @@ func main() {
 	}
 
 	threshold := defaultThreshold
+	if n, ok, err := loadRCThreshold(); err != nil {
+		warn(fmt.Sprintf("⚠ failed to read ~/.ddddrc: %v", err))
+	} else if ok {
+		threshold = n
+	}
 	if v := os.Getenv("DDD_THRESHOLD_BPM"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			threshold = n
+		if n, err := strconv.Atoi(v); err != nil {
+			warn(fmt.Sprintf("⚠ Invalid DDD_THRESHOLD_BPM=%q, using %d", v, threshold))
+		} else if n < minThreshold || n > maxThreshold {
+			warn(fmt.Sprintf("⚠ DDD_THRESHOLD_BPM=%d out of range [%d, %d], using %d", n, minThreshold, maxThreshold, threshold))
 		} else {
-			warn(fmt.Sprintf("⚠ Invalid DDD_THRESHOLD_BPM=%q, using default %d", v, defaultThreshold))
+			threshold = n
 		}
 	}
 
@@ -165,6 +175,58 @@ func fetchHeartRate() (bpm int, status string, err error) {
 		return 0, "", err
 	}
 	return r.BPM, r.Status, nil
+}
+
+// loadRCThreshold reads threshold_bpm from ~/.ddddrc.
+// Returns (value, true, nil) if found, (0, false, nil) if file absent or key missing,
+// (0, false, err) on I/O or permission errors.
+func loadRCThreshold() (int, bool, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return 0, false, err
+	}
+	f, err := os.Open(filepath.Join(home, ".ddddrc"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, false, nil
+		}
+		return 0, false, err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		if strings.TrimSpace(parts[0]) == "threshold_bpm" {
+			val := strings.TrimSpace(parts[1])
+			n, err := strconv.Atoi(val)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "⚠ ~/.ddddrc: invalid threshold_bpm=%q, ignored\n", val)
+				continue
+			}
+			if n < minThreshold {
+				fmt.Fprintf(os.Stderr, "%s💀 threshold_bpm=%d？それは甘えです。%s\n", colorRed, n, colorReset)
+				fmt.Fprintf(os.Stderr, "%s   閾値を下げる前に心拍を上げる努力をしてください。%s\n", colorRed, colorReset)
+				continue
+			}
+			if n > maxThreshold {
+				fmt.Fprintf(os.Stderr, "⚠ ~/.ddddrc: threshold_bpm=%d out of range [%d, %d], ignored\n", n, minThreshold, maxThreshold)
+				continue
+			}
+			return n, true, nil
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return 0, false, err
+	}
+	return 0, false, nil
 }
 
 func warn(msg string) {
