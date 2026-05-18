@@ -75,6 +75,19 @@ NEXT_PUBLIC_FIREBASE_APP_ID=
 | `DDD_DAEMON_PORT`     | `8765`      | デーモンの待受ポート     |
 | `DDD_THRESHOLD_BPM`   | `120`       | BPM のしきい値           |
 
+#### 閾値の個人設定（~/.ddddrc）
+
+環境変数の代わりに `~/.ddddrc` ファイルで閾値を永続設定できます:
+
+```toml
+# ~/.ddddrc
+threshold_bpm = 100
+```
+
+優先順位: **環境変数 `DDD_THRESHOLD_BPM` > `~/.ddddrc` > デフォルト 120**
+
+ファイルが存在しない場合はデフォルト値が使われます。
+
 ### 4. 依存パッケージのインストール
 
 dashboard と VS Code 拡張の依存パッケージをインストールします:
