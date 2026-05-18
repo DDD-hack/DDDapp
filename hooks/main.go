@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"math/rand"
 	"net/http"
 	"os"
+	"os/exec"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -53,9 +56,11 @@ func main() {
 	case "ok":
 		if bpm >= threshold {
 			fmt.Printf("%s🔥 BPM: %d — You're fired up! Commit allowed ✓%s\n", colorGreen, bpm, colorReset)
+			recordCommit(bpm, "accepted")
 			os.Exit(0)
 		}
 		printRejected(bpm, threshold)
+		recordCommit(bpm, "rejected")
 		os.Exit(1)
 	default:
 		warn("❓ Unexpected response from daemon — commit OK")
@@ -133,4 +138,25 @@ func fetchHeartRate() (bpm int, status string, err error) {
 
 func warn(msg string) {
 	fmt.Printf("%s%s%s\n", colorYellow, msg, colorReset)
+}
+
+func recordCommit(bpm int, result string) {
+	repoPath := ""
+	if out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output(); err == nil {
+		repoPath = strings.TrimSpace(string(out))
+	}
+
+	body, _ := json.Marshal(map[string]any{
+		"repo_path":   repoPath,
+		"commit_hash": "",
+		"bpm":         bpm,
+		"result":      result,
+	})
+
+	client := &http.Client{Timeout: 1 * time.Second}
+	resp, err := client.Post("http://localhost:8765/commits", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return
+	}
+	resp.Body.Close()
 }

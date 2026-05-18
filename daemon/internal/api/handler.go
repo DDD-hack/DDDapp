@@ -77,6 +77,27 @@ func (h *Handler) WS(c echo.Context) error {
 	return nil
 }
 
+// PostCommit records a commit attempt (accepted or rejected) from the git hook.
+func (h *Handler) PostCommit(c echo.Context) error {
+	var req struct {
+		RepoPath   string `json:"repo_path"`
+		CommitHash string `json:"commit_hash"`
+		BPM        int    `json:"bpm"`
+		Result     string `json:"result"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
+	}
+	if req.Result != "accepted" && req.Result != "rejected" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "result must be accepted or rejected"})
+	}
+	if err := h.db.SaveCommitAttempt(c.Request().Context(), req.RepoPath, req.CommitHash, req.BPM, req.Result); err != nil {
+		c.Logger().Warnf("post commit: %v", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to save"})
+	}
+	return c.JSON(http.StatusCreated, map[string]string{"status": "ok"})
+}
+
 // GetCurrent returns the current average BPM for the git hook.
 func (h *Handler) GetCurrent(c echo.Context) error {
 	bpm, ok := h.buf.Average()

@@ -41,6 +41,7 @@ func main() {
 	})
 	e.GET("/ws", h.WS)
 	e.GET("/heartrate/current", h.GetCurrent)
+	e.POST("/commits", h.PostCommit)
 
 	log.Printf("DDD daemon starting on :%s", port)
 	if err := e.Start(":" + port); err != nil && err != http.ErrServerClosed {
