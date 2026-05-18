@@ -12,7 +12,11 @@ func openTestStore(t *testing.T) *Store {
 	if err != nil {
 		t.Fatalf("OpenAt: %v", err)
 	}
-	t.Cleanup(func() { _ = s.Close() })
+	t.Cleanup(func() {
+		if err := s.Close(); err != nil {
+			t.Errorf("Close: %v", err)
+		}
+	})
 	return s
 }
 
@@ -22,7 +26,9 @@ func TestOpenAt_AutoCreatesNestedDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenAt nested dir: %v", err)
 	}
-	_ = s.Close()
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
 }
 
 func TestSaveSample(t *testing.T) {

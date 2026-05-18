@@ -73,7 +73,7 @@ for time.Now().Before(deadline) {
 b, _ := json.Marshal(body)
 ```
 
-テストヘルパーなので実害は極めて小さいが、`map[string]any` は必ず marshal できるため `_ =` が正当化される。意図を明示するなら `t.Fatal` に変更するか、あるいはそのままでも許容範囲。
+テストヘルパーなので実害は極めて小さいが、`map[string]any` の値に `func` や `chan` などの非対応型が含まれると `json.Marshal` はエラーを返す。このテストの入力では通常エラーになりにくいが、意図を明示するなら `t.Fatal` に変更する方が安全。
 
 ```go
 // ✅ 明示的な案
@@ -182,6 +182,7 @@ if _, err := os.Stat(dbPath); err != nil {
 - [ ] [mn-1] WebSocket テストの `time.Sleep` → ポーリングに変更 — CI が flaky になったら対処
 - [ ] [mn-2] `json.Marshal` エラーを `t.Fatal` に変更 — 任意
 - [ ] [S-1] table driven test 化 — 任意
+- [ ] [S-2] `TestOpenAt_AutoCreatesNestedDir` で `ddd.db` ファイルの存在確認を追加 — 任意
 
 ---
 
