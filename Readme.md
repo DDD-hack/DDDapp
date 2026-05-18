@@ -1,5 +1,8 @@
 # DDD
 
+[![Daemon CI](https://github.com/DDD-hack/DDDapp/actions/workflows/daemon-ci.yml/badge.svg)](https://github.com/DDD-hack/DDDapp/actions/workflows/daemon-ci.yml)
+[![Hooks CI](https://github.com/DDD-hack/DDDapp/actions/workflows/hooks-ci.yml/badge.svg)](https://github.com/DDD-hack/DDDapp/actions/workflows/hooks-ci.yml)
+
 ## 環境構築
 
 ### 前提条件

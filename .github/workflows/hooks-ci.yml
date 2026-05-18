@@ -1,0 +1,30 @@
+name: Hooks CI
+
+on:
+  pull_request:
+    paths:
+      - "hooks/**"
+      - "tasks/hooks.toml"
+      - "mise.toml"
+      - ".github/workflows/hooks-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "hooks/**"
+      - "tasks/hooks.toml"
+      - "mise.toml"
+      - ".github/workflows/hooks-ci.yml"
+
+jobs:
+  build-and-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          install: true
+          cache: true
+      - run: mise run hooks:lint
+      - run: mise run hooks:build
+      - name: Windows cross-build
+        run: cd hooks && GOOS=windows GOARCH=amd64 go build -o /dev/null .
