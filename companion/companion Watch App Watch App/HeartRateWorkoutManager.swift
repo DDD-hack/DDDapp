@@ -45,10 +45,8 @@ class HeartRateWorkoutManager: NSObject, ObservableObject {
         builder?.delegate = self
         session?.delegate = self
 
+        // beginCollection は session が .running になってからデリゲートで呼ぶ
         session?.startActivity(with: Date())
-        builder?.beginCollection(withStart: Date()) { _, _ in }
-
-        startKeepAliveTimer()
     }
 
     func stopWorkout() {
@@ -86,7 +84,15 @@ extension HeartRateWorkoutManager: HKLiveWorkoutBuilderDelegate {
 }
 
 extension HeartRateWorkoutManager: HKWorkoutSessionDelegate {
-    func workoutSession(_ workoutSession: HKWorkoutSession, didChangeTo toState: HKWorkoutSessionState, from fromState: HKWorkoutSessionState, date: Date) {}
+    func workoutSession(_ workoutSession: HKWorkoutSession, didChangeTo toState: HKWorkoutSessionState, from fromState: HKWorkoutSessionState, date: Date) {
+        // .running になってから beginCollection を呼ぶ（これが正しい順序）
+        if toState == .running {
+            builder?.beginCollection(withStart: date) { _, _ in }
+            DispatchQueue.main.async { [weak self] in
+                self?.startKeepAliveTimer()
+            }
+        }
+    }
 
     func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: any Error) {
         DispatchQueue.main.async { [weak self] in
