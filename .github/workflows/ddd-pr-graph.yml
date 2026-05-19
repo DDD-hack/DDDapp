@@ -1,0 +1,42 @@
+name: DDD PR Heart Rate Graph
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  graph:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Generate BPM graph
+        id: graph
+        run: |
+          node .github/scripts/generate-graph.js \
+            ${{ github.event.pull_request.base.sha }} \
+            ${{ github.event.pull_request.head.sha }} \
+            > comment.md
+          if [ -s comment.md ]; then
+            echo "has_data=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_data=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post PR comment
+        if: steps.graph.outputs.has_data == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --body-file comment.md --edit-last \
+          || gh pr comment ${{ github.event.pull_request.number }} \
+            --body-file comment.md
