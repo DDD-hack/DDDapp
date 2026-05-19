@@ -1,36 +1,37 @@
-import Combine
 import HealthKit
+import Combine
 
 @MainActor
 class HealthKitManager: ObservableObject {
+    private(set) var currentBPM: Double? = nil
+    private(set) var lastUpdated: Date? = nil
+    private(set) var errorMessage: String? = nil
+
+    var onBPMUpdate: ((Double) -> Void)?
+
     private let store = HKHealthStore()
     private let heartRateType = HKQuantityType(.heartRate)
     private let bpmUnit = HKUnit(from: "count/min")
-
-    @Published var currentBPM: Double? = nil
-    @Published var lastUpdated: Date? = nil
-    @Published var errorMessage: String? = nil
-
     private var anchor: HKQueryAnchor? = nil
     private var anchoredQuery: HKAnchoredObjectQuery? = nil
     private var observerQuery: HKObserverQuery? = nil
 
     func requestAuthorizationIfNeeded() {
         guard HKHealthStore.isHealthDataAvailable() else {
+            objectWillChange.send()
             errorMessage = "このデバイスはHealthKitに対応していません"
             return
         }
-
-        // READ権限はauthorizationStatus()が常にnotDeterminedを返す（Apple仕様）
-        // 既に監視中なら再起動しない
         guard anchoredQuery == nil else { return }
-
         Task {
             do {
                 try await store.requestAuthorization(toShare: [], read: [heartRateType])
-                startHeartRateMonitoring()
+                await MainActor.run { startHeartRateMonitoring() }
             } catch {
-                errorMessage = "HealthKit認証に失敗しました: \(error.localizedDescription)"
+                await MainActor.run {
+                    self.objectWillChange.send()
+                    self.errorMessage = "HealthKit認証に失敗しました: \(error.localizedDescription)"
+                }
             }
         }
     }
@@ -46,19 +47,18 @@ class HealthKitManager: ObservableObject {
         if let q = observerQuery { store.stop(q); observerQuery = nil }
     }
 
-    // MARK: - Private
-
     private func enableBackgroundDelivery() {
         store.enableBackgroundDelivery(for: heartRateType, frequency: .immediate) { [weak self] _, error in
             if let error {
                 Task { @MainActor [weak self] in
-                    self?.errorMessage = "バックグラウンド配信エラー: \(error.localizedDescription)"
+                    guard let self else { return }
+                    self.objectWillChange.send()
+                    self.errorMessage = "バックグラウンド配信エラー: \(error.localizedDescription)"
                 }
             }
         }
     }
 
-    // バックグラウンドwakeup時に最新サンプルを取得
     private func startObserverQuery() {
         let query = HKObserverQuery(sampleType: heartRateType, predicate: nil) { [weak self] _, completionHandler, error in
             guard error == nil else { completionHandler(); return }
@@ -69,22 +69,14 @@ class HealthKitManager: ObservableObject {
         store.execute(query)
     }
 
-    // フォアグラウンドのリアルタイム監視
     private func startAnchoredQuery() {
         let query = HKAnchoredObjectQuery(
-            type: heartRateType,
-            predicate: nil,
-            anchor: anchor,
-            limit: HKObjectQueryNoLimit
+            type: heartRateType, predicate: nil, anchor: anchor, limit: HKObjectQueryNoLimit
         ) { [weak self] _, samples, _, newAnchor, _ in
-            Task { @MainActor [weak self] in
-                self?.handleSamples(samples, newAnchor: newAnchor)
-            }
+            Task { @MainActor [weak self] in self?.handleSamples(samples, newAnchor: newAnchor) }
         }
         query.updateHandler = { [weak self] _, samples, _, newAnchor, _ in
-            Task { @MainActor [weak self] in
-                self?.handleSamples(samples, newAnchor: newAnchor)
-            }
+            Task { @MainActor [weak self] in self?.handleSamples(samples, newAnchor: newAnchor) }
         }
         anchoredQuery = query
         store.execute(query)
@@ -93,21 +85,25 @@ class HealthKitManager: ObservableObject {
     private func handleSamples(_ samples: [HKSample]?, newAnchor: HKQueryAnchor?) {
         anchor = newAnchor
         guard let samples = samples as? [HKQuantitySample], !samples.isEmpty else { return }
-        // 最新のサンプルを日付で選択
         let latest = samples.max(by: { $0.endDate < $1.endDate })!
-        currentBPM = latest.quantity.doubleValue(for: bpmUnit)
+        let bpm = latest.quantity.doubleValue(for: bpmUnit)
+        objectWillChange.send()
+        currentBPM = bpm
         lastUpdated = latest.endDate
+        onBPMUpdate?(bpm)
     }
 
-    // ObserverQuery wakeup時に1件取得
     private func fetchLatestSample() {
         let sort = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
         let query = HKSampleQuery(sampleType: heartRateType, predicate: nil, limit: 1, sortDescriptors: [sort]) { [weak self] _, samples, _ in
             guard let sample = (samples as? [HKQuantitySample])?.first else { return }
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.currentBPM = sample.quantity.doubleValue(for: self.bpmUnit)
+                let bpm = sample.quantity.doubleValue(for: self.bpmUnit)
+                self.objectWillChange.send()
+                self.currentBPM = bpm
                 self.lastUpdated = sample.endDate
+                self.onBPMUpdate?(bpm)
             }
         }
         store.execute(query)

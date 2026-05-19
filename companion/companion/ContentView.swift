@@ -1,23 +1,22 @@
 import SwiftUI
-import HealthKit
 
 struct ContentView: View {
     @EnvironmentObject private var watchManager: WatchConnectivityManager
     @EnvironmentObject private var healthKitManager: HealthKitManager
+    @Environment(DaemonWebSocketClient.self) private var daemonClient
 
-    // WatchConnectivity優先、未接続時はHealthKitフォールバック
+    @AppStorage("daemonHost") private var daemonHost = "192.168.1.1"
+
     private var bpm: Double? { watchManager.currentBPM ?? healthKitManager.currentBPM }
     private var lastUpdated: Date? { watchManager.lastUpdated ?? healthKitManager.lastUpdated }
 
     var body: some View {
         VStack(spacing: 24) {
             heartRateView
-            statusView
+            daemonView
         }
         .padding()
     }
-
-    // MARK: - BPM表示
 
     @ViewBuilder
     private var heartRateView: some View {
@@ -26,10 +25,9 @@ struct ContentView: View {
                 .font(.system(size: 48))
                 .foregroundStyle(.red)
 
-            if let bpm = bpm {
+            if let bpm {
                 Text("\(Int(bpm))")
                     .font(.system(size: 72, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
                 Text("bpm")
                     .font(.title3)
                     .foregroundStyle(.secondary)
@@ -50,30 +48,45 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - ステータス表示
-
     @ViewBuilder
-    private var statusView: some View {
-        VStack(spacing: 6) {
-            Text(statusText)
-                .font(.subheadline)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(statusColor)
+    private var daemonView: some View {
+        VStack(spacing: 12) {
+            HStack {
+                TextField("Daemon IP", text: $daemonHost)
+                    .keyboardType(.decimalPad)
+                    .autocorrectionDisabled()
+                    .textFieldStyle(.roundedBorder)
 
-        }
-    }
+                Button(daemonClient.status == .connected ? "切断" : "接続") {
+                    if daemonClient.status == .connected {
+                        daemonClient.disconnect()
+                    } else {
+                        daemonClient.connect(host: daemonHost)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(daemonClient.status == .connected ? .gray : .blue)
+            }
 
-    private var statusText: String {
-        if let error = healthKitManager.errorMessage {
-            return error
+            HStack {
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 8, height: 8)
+                Text("Daemon: \(daemonClient.status.label)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
         }
-        return healthKitManager.currentBPM == nil
-            ? "Apple Watch からのデータ待機中..."
-            : "取得中"
+        .padding(.horizontal, 4)
     }
 
     private var statusColor: Color {
-        healthKitManager.errorMessage != nil ? .red : .secondary
+        switch daemonClient.status {
+        case .connected:                 return .green
+        case .connecting, .reconnecting: return .orange
+        case .disconnected:              return .secondary
+        }
     }
 }
 
@@ -81,4 +94,5 @@ struct ContentView: View {
     ContentView()
         .environmentObject(WatchConnectivityManager())
         .environmentObject(HealthKitManager())
+        .environment(DaemonWebSocketClient())
 }

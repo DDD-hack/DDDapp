@@ -2,44 +2,45 @@ import WatchConnectivity
 import Combine
 
 @MainActor
-class WatchConnectivityManager: NSObject, ObservableObject {
-    @Published var currentBPM: Double? = nil
-    @Published var lastUpdated: Date? = nil
+final class WatchConnectivityManager: ObservableObject {
+    private(set) var currentBPM: Double? = nil
+    private(set) var lastUpdated: Date? = nil
 
-    override init() {
-        super.init()
-        // アプリ起動直後にactivateしてメッセージの取りこぼしを防ぐ
+    var onBPMUpdate: ((Double) -> Void)?
+
+    private let sessionHandler = WCSessionHandler()
+
+    init() {
+        sessionHandler.onBPMReceived = { [weak self] bpm in
+            Task { @MainActor in
+                guard let self else { return }
+                self.objectWillChange.send()   // @Published合成に頼らず明示的に通知
+                self.currentBPM = bpm
+                self.lastUpdated = Date()
+                self.onBPMUpdate?(bpm)
+                print("[Watch] received bpm=\(Int(bpm))")
+            }
+        }
         guard WCSession.isSupported() else { return }
-        WCSession.default.delegate = self
+        WCSession.default.delegate = sessionHandler
         WCSession.default.activate()
-    }
-
-    // onAppearから呼ばれても二重activateにならないよう残す
-    func setup() {}
-
-    private func update(bpm: Double) {
-        currentBPM = bpm
-        lastUpdated = Date()
     }
 }
 
-extension WatchConnectivityManager: WCSessionDelegate {
-    func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: (any Error)?) {}
+private final class WCSessionHandler: NSObject, WCSessionDelegate {
+    var onBPMReceived: ((Double) -> Void)?
 
+    func session(_ session: WCSession, activationDidCompleteWith state: WCSessionActivationState, error: (any Error)?) {}
     func sessionDidBecomeInactive(_ session: WCSession) {}
-    func sessionDidDeactivate(_ session: WCSession) {
-        WCSession.default.activate()
-    }
+    func sessionDidDeactivate(_ session: WCSession) { WCSession.default.activate() }
 
-    // sendMessage で受信（フォアグラウンド時）
-    nonisolated func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+    func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
         guard let bpm = message["bpm"] as? Double else { return }
-        Task { @MainActor [weak self] in self?.update(bpm: bpm) }
+        onBPMReceived?(bpm)
     }
 
-    // transferUserInfo で受信（バックグラウンド・ロック時）
-    nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any]) {
+    func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any]) {
         guard let bpm = userInfo["bpm"] as? Double else { return }
-        Task { @MainActor [weak self] in self?.update(bpm: bpm) }
+        onBPMReceived?(bpm)
     }
 }
