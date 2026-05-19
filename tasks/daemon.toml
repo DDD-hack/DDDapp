@@ -24,3 +24,8 @@ go vet ./...
 dir         = "daemon"
 description = "Go テストを実行します."
 run         = "go test ./..."
+
+["daemon:stats"]
+dir         = "daemon"
+description = "コミット統計を表示します."
+run         = "go run ./cmd/ddd-stats/..."
