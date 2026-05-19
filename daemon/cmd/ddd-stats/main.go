@@ -73,7 +73,11 @@ func main() {
 	ctx := context.Background()
 
 	bs, err := queryBasicStats(ctx, db)
-	if err != nil || bs.Total == 0 {
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: query stats: %v\n", err)
+		os.Exit(1)
+	}
+	if bs.Total == 0 {
 		fmt.Println("まだデータがありません（コミットしてみてください）")
 		return
 	}
@@ -136,7 +140,7 @@ func queryTopCommits(ctx context.Context, db *sql.DB) ([]topCommit, error) {
 	for rows.Next() {
 		var t topCommit
 		if err := rows.Scan(&t.BPM, &t.Hash, &t.At); err != nil {
-			continue
+			return nil, fmt.Errorf("scan top commit: %w", err)
 		}
 		if len(t.Hash) > 7 {
 			t.Hash = t.Hash[:7]
@@ -177,7 +181,7 @@ func queryTimeBands(ctx context.Context, db *sql.DB) ([]timeBand, error) {
 	for rows.Next() {
 		var b timeBand
 		if err := rows.Scan(&b.Key, &b.Total, &b.Dead); err != nil {
-			continue
+			return nil, fmt.Errorf("scan time band: %w", err)
 		}
 		b.Label = keyToLabel[b.Key]
 		if b.Total > 0 {
