@@ -113,11 +113,11 @@ func queryBasicStats(ctx context.Context, db *sql.DB) (basicStats, error) {
 	var bs basicStats
 	err := db.QueryRowContext(ctx, `
 		SELECT
-			MAX(bpm_at_commit),
-			CAST(AVG(bpm_at_commit) AS INTEGER),
+			COALESCE(MAX(bpm_at_commit), 0),
+			COALESCE(CAST(AVG(bpm_at_commit) AS INTEGER), 0),
 			COUNT(*),
-			SUM(CASE WHEN result = 'accepted' THEN 1 ELSE 0 END),
-			SUM(CASE WHEN result = 'rejected' THEN 1 ELSE 0 END)
+			COALESCE(SUM(CASE WHEN result = 'accepted' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN result = 'rejected' THEN 1 ELSE 0 END), 0)
 		FROM commit_attempts
 	`).Scan(&bs.MaxBPM, &bs.AvgBPM, &bs.Total, &bs.Accepted, &bs.Rejected)
 	return bs, err
