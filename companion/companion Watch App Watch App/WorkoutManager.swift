@@ -1,22 +1,31 @@
 import Foundation
 import HealthKit
+import Observation
 import WatchConnectivity
 
-@MainActor
-class WorkoutManager: NSObject, ObservableObject {
+@Observable
+class WorkoutManager: NSObject {
+    var isRunning = false
+    var currentBPM: Int = 0
+    var errorMessage: String?
+
     private let healthStore = HKHealthStore()
     private var workoutSession: HKWorkoutSession?
     private var builder: HKLiveWorkoutBuilder?
 
-    @Published var isRunning = false
-    @Published var currentBPM: Int = 0
-    @Published var errorMessage: String?
+    override init() {
+        super.init()
+        if WCSession.isSupported() {
+            WCSession.default.delegate = self
+            WCSession.default.activate()
+        }
+    }
 
     func requestAuthorizationAndStart() {
         let heartRateType = HKQuantityType(.heartRate)
         Task {
             do {
-                try await healthStore.requestAuthorization(toShare: [HKQuantityType(.workoutType())], read: [heartRateType])
+                try await healthStore.requestAuthorization(toShare: [HKObjectType.workoutType()], read: [heartRateType])
                 startWorkout()
             } catch {
                 errorMessage = "HealthKit 認証失敗: \(error.localizedDescription)"
@@ -66,7 +75,8 @@ class WorkoutManager: NSObject, ObservableObject {
 
     private func sendBPM(_ bpm: Int) {
         currentBPM = bpm
-        guard WCSession.default.isReachable else { return }
+        guard WCSession.default.activationState == .activated,
+              WCSession.default.isReachable else { return }
         WCSession.default.sendMessage(["bpm": bpm], replyHandler: nil)
     }
 }
@@ -92,7 +102,6 @@ extension WorkoutManager: HKLiveWorkoutBuilderDelegate {
     }
 }
 
-// WCSession on watchOS requires activation before sendMessage
 extension WorkoutManager: WCSessionDelegate {
     nonisolated func session(_ session: WCSession, activationDidCompleteWith state: WCSessionActivationState, error: Error?) {}
 }

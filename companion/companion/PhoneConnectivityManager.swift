@@ -1,10 +1,11 @@
 import Foundation
+import Observation
 import WatchConnectivity
 
-@MainActor
-class PhoneConnectivityManager: NSObject, ObservableObject {
-    @Published var latestBPM: Int = 0
-    @Published var isWatchReachable = false
+@Observable
+class PhoneConnectivityManager: NSObject {
+    var latestBPM: Int = 0
+    var isWatchReachable = false
 
     var onBPMReceived: ((Int) -> Void)?
 

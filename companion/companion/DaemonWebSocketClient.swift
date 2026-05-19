@@ -1,10 +1,16 @@
 import Foundation
+import Observation
 
-@MainActor
-class DaemonWebSocketClient: NSObject, ObservableObject {
+@Observable
+class DaemonWebSocketClient: NSObject {
     private var task: URLSessionWebSocketTask?
-    private lazy var session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
-    @Published var isConnected = false
+    private var session: URLSession!
+    var isConnected = false
+
+    override init() {
+        super.init()
+        session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
+    }
 
     func connect(host: String, port: Int = 8765) {
         disconnect()
@@ -35,7 +41,6 @@ class DaemonWebSocketClient: NSObject, ObservableObject {
         }
     }
 
-    // サーバ起点の切断を検知するための受信ループ
     private func startReceiveLoop() {
         task?.receive { [weak self] result in
             guard let self else { return }

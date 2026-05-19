@@ -2,14 +2,14 @@ import SwiftUI
 
 @main
 struct companionApp: App {
-    @StateObject private var connectivity = PhoneConnectivityManager()
-    @StateObject private var daemonClient = DaemonWebSocketClient()
+    @State private var connectivity = PhoneConnectivityManager()
+    @State private var daemonClient = DaemonWebSocketClient()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environmentObject(connectivity)
-                .environmentObject(daemonClient)
+                .environment(connectivity)
+                .environment(daemonClient)
                 .onAppear {
                     connectivity.onBPMReceived = { bpm in
                         daemonClient.send(bpm: bpm)

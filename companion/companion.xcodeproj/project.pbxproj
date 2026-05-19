@@ -75,9 +75,22 @@
 		8ACD6C4C2FB8BF5A0026CF2E /* companionUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = companionUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		8A8F9C2B2FBB326200FDF439 /* Exceptions for "companion Watch App Watch App" folder in "companion Watch App Watch App" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"companion-Watch-App-Watch-App-Info.plist",
+			);
+			target = 8AC78E522FB8CCA600F9C57A /* companion Watch App Watch App */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		8AC78E542FB8CCA600F9C57A /* companion Watch App Watch App */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8A8F9C2B2FBB326200FDF439 /* Exceptions for "companion Watch App Watch App" folder in "companion Watch App Watch App" target */,
+			);
 			path = "companion Watch App Watch App";
 			sourceTree = "<group>";
 		};
@@ -521,6 +534,7 @@
 				DEVELOPMENT_TEAM = 7RMMPRK4UK;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "companion-Watch-App-Watch-App-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "companion Watch App";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "心拍数を取得してコミット制御に使用します";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "心拍数データを記録します";
@@ -557,6 +571,7 @@
 				DEVELOPMENT_TEAM = 7RMMPRK4UK;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "companion-Watch-App-Watch-App-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "companion Watch App";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "心拍数を取得してコミット制御に使用します";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "心拍数データを記録します";

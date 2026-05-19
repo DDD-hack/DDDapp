@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @EnvironmentObject private var workoutManager: WorkoutManager
+    @Environment(WorkoutManager.self) private var workoutManager
 
     var body: some View {
         VStack(spacing: 12) {
@@ -42,5 +42,5 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
-        .environmentObject(WorkoutManager())
+        .environment(WorkoutManager())
 }

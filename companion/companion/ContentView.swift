@@ -1,8 +1,8 @@
 import SwiftUI
 
 struct ContentView: View {
-    @EnvironmentObject private var connectivity: PhoneConnectivityManager
-    @EnvironmentObject private var daemonClient: DaemonWebSocketClient
+    @Environment(PhoneConnectivityManager.self) private var connectivity
+    @Environment(DaemonWebSocketClient.self) private var daemonClient
 
     @AppStorage("daemonHost") private var daemonHost = "192.168.1.1"
 
@@ -64,6 +64,6 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
-        .environmentObject(PhoneConnectivityManager())
-        .environmentObject(DaemonWebSocketClient())
+        .environment(PhoneConnectivityManager())
+        .environment(DaemonWebSocketClient())
 }
