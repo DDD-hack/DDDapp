@@ -1,10 +1,10 @@
 import * as vscode from "vscode";
-import WebSocket from "ws";
 import { exec } from "child_process";
 
 let ws: WebSocket | null = null;
 let statusBar: vscode.StatusBarItem;
 let reconnectTimeout: NodeJS.Timeout | null = null;
+let isDeactivating = false;
 
 // デモモード: 環境変数で閾値を変更可能（デフォルト120）
 const THRESHOLD = Number(process.env.DDD_THRESHOLD) || 120;
@@ -15,24 +15,27 @@ const THRESHOLD = Number(process.env.DDD_THRESHOLD) || 120;
 const port = process.env.DDD_DAEMON_PORT || "8765";
 
 function connectWebSocket() {
+  if (isDeactivating) return;
+  
   if (ws) {
     ws.close();
   }
 
   ws = new WebSocket(`ws://localhost:${port}/ws/vscode`);
 
-  ws.on("open", () => {
+  ws.addEventListener("open", () => {
     console.log("DDD: Connected to daemon");
     statusBar.tooltip = "DDD: Connected";
   });
 
-  ws.on("message", (data) => {
+  ws.addEventListener("message", (event) => {
     try {
-      const msg = JSON.parse(data.toString());
+      const msg = JSON.parse(event.data.toString());
 
-      if (msg.type === "bpm") {
+      // Type and payload validation (Security fix)
+      if (msg.type === "bpm" && typeof msg.bpm === "number" && Number.isFinite(msg.bpm)) {
         handleBpmUpdate(msg);
-      } else if (msg.type === "commit_result") {
+      } else if (msg.type === "commit_result" && typeof msg.bpm === "number" && Number.isFinite(msg.bpm)) {
         handleCommitResult(msg);
       }
     } catch (e) {
@@ -40,7 +43,7 @@ function connectWebSocket() {
     }
   });
 
-  ws.on("close", () => {
+  ws.addEventListener("close", () => {
     console.log("DDD: Disconnected from daemon");
     statusBar.text = `$(heart) disconnected`;
     statusBar.backgroundColor = new vscode.ThemeColor("statusBarItem.warningBackground");
@@ -50,11 +53,14 @@ function connectWebSocket() {
     if (reconnectTimeout) {
       clearTimeout(reconnectTimeout);
     }
-    reconnectTimeout = setTimeout(connectWebSocket, 5000);
+    if (!isDeactivating) {
+      reconnectTimeout = setTimeout(connectWebSocket, 5000);
+    }
   });
 
-  ws.on("error", (err) => {
-    console.error("DDD: WebSocket error", err);
+  ws.addEventListener("error", (event) => {
+    console.error("DDD: WebSocket error", event);
+    vscode.window.showErrorMessage("DDD: WebSocket接続エラー。デーモンが起動していない可能性があります。");
     ws?.close();
   });
 }
@@ -72,7 +78,7 @@ function handleBpmUpdate(msg: { bpm: number; status?: string }) {
     statusBar.text = `$(heart) ${bpm} bpm`;
     statusBar.tooltip = `DDD: ${bpm} bpm (閾値: ${THRESHOLD})`;
 
-    if (bpm > THRESHOLD) {
+    if (bpm >= THRESHOLD) {
       // 情熱モード（赤背景）
       statusBar.backgroundColor = new vscode.ThemeColor("statusBarItem.errorBackground");
     } else {
@@ -487,6 +493,7 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
+  isDeactivating = true;
   if (reconnectTimeout) {
     clearTimeout(reconnectTimeout);
   }
