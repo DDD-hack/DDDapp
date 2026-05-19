@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -31,10 +32,17 @@ var upgrader = websocket.Upgrader{
 type Handler struct {
 	buf *hrm.Buffer
 	db  *store.Store
+
+	mu          sync.Mutex
+	vscodeConns []*websocket.Conn
 }
 
 func NewHandler(buf *hrm.Buffer, db *store.Store) *Handler {
-	return &Handler{buf: buf, db: db}
+	return &Handler{
+		buf:         buf,
+		db:          db,
+		vscodeConns: make([]*websocket.Conn, 0),
+	}
 }
 
 // WS handles WebSocket connections from the iPhone app.
@@ -101,7 +109,58 @@ func (h *Handler) PostCommit(c echo.Context) error {
 		c.Logger().Warnf("post commit: %v", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to save"})
 	}
+
+	h.BroadcastVscode(map[string]any{
+		"type":   "commit_result",
+		"result": req.Result,
+		"bpm":    req.BPM,
+	})
+
 	return c.JSON(http.StatusCreated, map[string]string{"status": "ok"})
+}
+
+// VscodeWS handles WebSocket connections from the VS Code extension.
+func (h *Handler) VscodeWS(c echo.Context) error {
+	conn, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
+	if err != nil {
+		return err
+	}
+
+	h.mu.Lock()
+	h.vscodeConns = append(h.vscodeConns, conn)
+	h.mu.Unlock()
+
+	defer func() {
+		h.mu.Lock()
+		for i, c := range h.vscodeConns {
+			if c == conn {
+				h.vscodeConns = append(h.vscodeConns[:i], h.vscodeConns[i+1:]...)
+				break
+			}
+		}
+		h.mu.Unlock()
+		conn.Close()
+	}()
+
+	for {
+		if _, _, err := conn.ReadMessage(); err != nil {
+			break
+		}
+	}
+	return nil
+}
+
+// BroadcastVscode sends a JSON message to all connected VS Code extensions.
+func (h *Handler) BroadcastVscode(msg any) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	for _, conn := range h.vscodeConns {
+		if err := conn.WriteJSON(msg); err != nil {
+			// Errors will be cleaned up on next read failure
+			continue
+		}
+	}
 }
 
 // GetCurrent returns the current average BPM for the git hook.
