@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Reads DDDD-BPM trailers from PR commits and outputs a Mermaid PR comment.
+// Reads DDD-BPM trailers from PR commits and outputs a Mermaid PR comment.
 // Usage: node generate-graph.js <base-sha> <head-sha>
 
 const { execSync } = require("child_process");
@@ -37,7 +37,7 @@ if (commits.length === 0) {
   process.exit(0);
 }
 
-// Extract DDDD-BPM trailer from each commit
+// Extract DDD-BPM trailer from each commit
 const data = [];
 for (const commit of commits) {
   let body;
@@ -48,7 +48,7 @@ for (const commit of commits) {
   } catch {
     continue;
   }
-  const match = body.match(/^DDDD-BPM:\s*(\d+)/m);
+  const match = body.match(/^DDD-BPM:\s*(\d+)/m);
   if (!match) continue;
 
   data.push({
