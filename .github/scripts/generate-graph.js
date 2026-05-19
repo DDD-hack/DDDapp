@@ -48,7 +48,7 @@ for (const commit of commits) {
   } catch {
     continue;
   }
-  const match = body.match(/^DDD-BPM:\s*(\d+)/m);
+  const match = body.match(/^\s*DDD-BPM:\s*(\d+)/m);
   if (!match) continue;
 
   data.push({
