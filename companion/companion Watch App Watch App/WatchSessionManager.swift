@@ -11,19 +11,22 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
     }
 
     func send(bpm: Double) {
+        let isReachable = WCSession.default.isReachable
+        let activationState = WCSession.default.activationState
+        print("[WatchWC] send bpm=\(Int(bpm)) isReachable=\(isReachable) activation=\(activationState.rawValue)")
         let payload: [String: Any] = ["bpm": bpm, "ts": Date().timeIntervalSince1970]
-        if WCSession.default.isReachable {
-            // iPhoneアプリがフォアグラウンド → 即時送信
-            WCSession.default.sendMessage(payload, replyHandler: nil, errorHandler: { [weak self] _ in
-                // 送信失敗時はキューに積む
+        if isReachable {
+            WCSession.default.sendMessage(payload, replyHandler: nil, errorHandler: { error in
+                print("[WatchWC] sendMessage失敗(\(error.localizedDescription)) → transferUserInfoにフォールバック")
                 WCSession.default.transferUserInfo(payload)
-                _ = self // suppress warning
             })
         } else {
-            // バックグラウンド・画面ロック時 → キュー経由で配信
+            print("[WatchWC] isReachable=false → transferUserInfo")
             WCSession.default.transferUserInfo(payload)
         }
     }
 
-    func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: (any Error)?) {}
+    func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: (any Error)?) {
+        print("[WatchWC] activation: \(activationState.rawValue) error=\(error?.localizedDescription ?? "nil")")
+    }
 }

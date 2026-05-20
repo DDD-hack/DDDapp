@@ -45,6 +45,14 @@ struct ContentView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Button {
+                healthKitManager.fetchLatestSample()
+            } label: {
+                Label("更新", systemImage: "arrow.clockwise")
+                    .font(.caption)
+            }
+            .buttonStyle(.bordered)
         }
     }
 

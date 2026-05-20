@@ -13,12 +13,18 @@ struct companionApp: App {
                 .environmentObject(healthKitManager)
                 .environment(daemonClient)
                 .onAppear {
+                    print("[App] onAppear: コールバック登録")
                     healthKitManager.requestAuthorizationIfNeeded()
                     watchManager.onBPMUpdate = { bpm in
+                        print("[App] watchManager.onBPMUpdate → daemonClient.latestBPM=\(Int(bpm))")
                         daemonClient.latestBPM = bpm
                     }
                     healthKitManager.onBPMUpdate = { bpm in
-                        guard watchManager.currentBPM == nil else { return }
+                        guard watchManager.currentBPM == nil else {
+                            print("[App] healthKitManager.onBPMUpdate → watchBPMあり(\(Int(watchManager.currentBPM!)))なのでスキップ")
+                            return
+                        }
+                        print("[App] healthKitManager.onBPMUpdate → daemonClient.latestBPM=\(Int(bpm))")
                         daemonClient.latestBPM = bpm
                     }
                 }

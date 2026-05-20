@@ -520,12 +520,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 7RMMPRK4UK;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "companion Watch App";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "心拍数を取得してコミット制御に使用します";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "心拍数データを記録します";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
-				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = oto.companion;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WatchAppInfo.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -556,12 +552,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 7RMMPRK4UK;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "companion Watch App";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "心拍数を取得してコミット制御に使用します";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "心拍数データを記録します";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
-				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = oto.companion;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WatchAppInfo.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
