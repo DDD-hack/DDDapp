@@ -128,10 +128,12 @@ const yMax = rawMax > 220 ? rawMax + 20 : 220;
 
 const chart = [
   "```mermaid",
+  "%%{init: {'xyChart': {'plotColorPalette': '#e53935,#b71c1c'}}}%%",
   "xychart-beta",
   `  title "Commit BPM History"`,
   `  x-axis [${xLabels.join(", ")}]`,
   `  y-axis "BPM" ${yMin} --> ${yMax}`,
+  `  bar [${bpms.join(", ")}]`,
   `  line [${bpms.join(", ")}]`,
   "```",
 ].join("\n");
