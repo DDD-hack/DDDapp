@@ -17,12 +17,12 @@ class WatchSessionManager: NSObject, WCSessionDelegate, ObservableObject {
         let payload: [String: Any] = ["bpm": bpm, "ts": Date().timeIntervalSince1970]
         if isReachable {
             WCSession.default.sendMessage(payload, replyHandler: nil, errorHandler: { error in
-                print("[WatchWC] sendMessage失敗(\(error.localizedDescription)) → transferUserInfoにフォールバック")
-                WCSession.default.transferUserInfo(payload)
+                print("[WatchWC] sendMessage失敗(\(error.localizedDescription)) → updateApplicationContextにフォールバック")
+                try? WCSession.default.updateApplicationContext(payload)
             })
         } else {
-            print("[WatchWC] isReachable=false → transferUserInfo")
-            WCSession.default.transferUserInfo(payload)
+            print("[WatchWC] isReachable=false → updateApplicationContext")
+            try? WCSession.default.updateApplicationContext(payload)
         }
     }
 

@@ -19,14 +19,21 @@ class HeartRateWorkoutManager: NSObject, ObservableObject {
         let types: Set<HKSampleType> = [heartRateType]
         let shareTypes: Set<HKSampleType> = [HKObjectType.workoutType()]
         store.requestAuthorization(toShare: shareTypes, read: types) { [weak self] _, error in
+            guard let self else { return }
             if let error {
                 DispatchQueue.main.async {
-                    self?.errorMessage = "認証エラー: \(error.localizedDescription)"
+                    self.errorMessage = "認証エラー: \(error.localizedDescription)"
+                }
+                return
+            }
+            guard self.store.authorizationStatus(for: self.heartRateType) == .sharingAuthorized else {
+                DispatchQueue.main.async {
+                    self.errorMessage = "心拍読み取りが許可されていません"
                 }
                 return
             }
             DispatchQueue.main.async {
-                self?.startWorkout()
+                self.startWorkout()
             }
         }
     }
@@ -56,8 +63,16 @@ class HeartRateWorkoutManager: NSObject, ObservableObject {
         keepAliveTimer?.invalidate()
         keepAliveTimer = nil
         session?.end()
-        builder?.endCollection(withEnd: Date()) { _, _ in
-            self.builder?.finishWorkout { _, _ in }
+        builder?.endCollection(withEnd: Date()) { [weak self] _, error in
+            if let error {
+                DispatchQueue.main.async { self?.errorMessage = "endCollectionエラー: \(error.localizedDescription)" }
+                return
+            }
+            self?.builder?.finishWorkout { [weak self] _, error in
+                if let error {
+                    DispatchQueue.main.async { self?.errorMessage = "finishWorkoutエラー: \(error.localizedDescription)" }
+                }
+            }
         }
     }
 
@@ -67,6 +82,8 @@ class HeartRateWorkoutManager: NSObject, ObservableObject {
     }
 
     private func startKeepAliveTimer() {
+        keepAliveTimer?.invalidate()
+        keepAliveTimer = nil
         keepAliveTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             guard let self, self.currentBPM > 0 else { return }
             self.onBPMUpdate?(self.currentBPM)
@@ -94,7 +111,12 @@ extension HeartRateWorkoutManager: HKWorkoutSessionDelegate {
     func workoutSession(_ workoutSession: HKWorkoutSession, didChangeTo toState: HKWorkoutSessionState, from fromState: HKWorkoutSessionState, date: Date) {
         print("[HRM] state: \(fromState.rawValue) → \(toState.rawValue)")
         if toState == .running {
-            builder?.beginCollection(withStart: date) { _, _ in }
+            builder?.beginCollection(withStart: date) { [weak self] _, error in
+                if let error {
+                    DispatchQueue.main.async { self?.errorMessage = "beginCollectionエラー: \(error.localizedDescription)" }
+                    return
+                }
+            }
             DispatchQueue.main.async { [weak self] in
                 self?.startKeepAliveTimer()
             }

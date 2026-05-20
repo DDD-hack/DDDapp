@@ -4,6 +4,7 @@ import SwiftUI
 struct companion_Watch_App_Watch_AppApp: App {
     @StateObject private var workoutManager = HeartRateWorkoutManager()
     @State private var daemonClient = DaemonDirectClient()
+    @State private var didStart = false
 
     var body: some Scene {
         WindowGroup {
@@ -11,6 +12,8 @@ struct companion_Watch_App_Watch_AppApp: App {
                 .environmentObject(workoutManager)
                 .environment(daemonClient)
                 .onAppear {
+                    guard !didStart else { return }
+                    didStart = true
                     WatchSessionManager.shared.setup()
                     workoutManager.requestAuthorizationAndStart()
                     workoutManager.onBPMUpdate = { bpm in

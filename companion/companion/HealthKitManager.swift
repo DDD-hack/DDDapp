@@ -49,6 +49,9 @@ class HealthKitManager: ObservableObject {
         if let q = observerQuery { store.stop(q); observerQuery = nil }
         pollTimer?.invalidate()
         pollTimer = nil
+        store.disableBackgroundDelivery(for: heartRateType) { _, error in
+            if let error { print("[HKManager] disableBackgroundDelivery error: \(error)") }
+        }
     }
 
     private func startPollTimer() {
@@ -77,8 +80,9 @@ class HealthKitManager: ObservableObject {
     private func startObserverQuery() {
         let query = HKObserverQuery(sampleType: heartRateType, predicate: nil) { [weak self] _, completionHandler, error in
             guard error == nil else { completionHandler(); return }
-            Task { @MainActor [weak self] in self?.fetchLatestSample() }
-            completionHandler()
+            Task { @MainActor [weak self] in
+                self?.fetchLatestSample(completion: completionHandler)
+            }
         }
         observerQuery = query
         store.execute(query)
@@ -110,9 +114,10 @@ class HealthKitManager: ObservableObject {
         onBPMUpdate?(bpm)
     }
 
-    func fetchLatestSample() {
+    func fetchLatestSample(completion: (() -> Void)? = nil) {
         let sort = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
         let query = HKSampleQuery(sampleType: heartRateType, predicate: nil, limit: 1, sortDescriptors: [sort]) { [weak self] _, samples, error in
+            defer { completion?() }
             if let error {
                 print("[HKManager] ❌ fetchLatestSample error: \(error)")
                 return

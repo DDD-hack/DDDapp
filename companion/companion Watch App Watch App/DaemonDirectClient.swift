@@ -64,20 +64,26 @@ class DaemonDirectClient: NSObject {
         print("[DaemonDirect] reconnecting in \(Int(reconnectDelay))s...")
         status = .reconnecting
         stopSendTimer()
-        reconnectTimer = Timer.scheduledTimer(withTimeInterval: reconnectDelay, repeats: false) { [weak self] _ in
+        DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            Task { @MainActor in
-                self.reconnectDelay = min(self.reconnectDelay * 2, 60.0)
-                self.openConnection()
+            self.reconnectTimer = Timer.scheduledTimer(withTimeInterval: self.reconnectDelay, repeats: false) { [weak self] _ in
+                guard let self else { return }
+                Task { @MainActor in
+                    self.reconnectDelay = min(self.reconnectDelay * 2, 60.0)
+                    self.openConnection()
+                }
             }
         }
     }
 
     private func startSendTimer() {
         sendTimer?.invalidate()
-        sendTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+        DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            Task { @MainActor in self.sendLatestBPM() }
+            self.sendTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+                guard let self else { return }
+                Task { @MainActor in self.sendLatestBPM() }
+            }
         }
     }
 

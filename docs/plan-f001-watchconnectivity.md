@@ -17,7 +17,7 @@
 
 ## アーキテクチャ
 
-```
+```text
 Apple Watch アプリ
   └── HKWorkoutSession（センサーを常時 ON）
        └── HKLiveWorkoutBuilder
@@ -38,7 +38,7 @@ iPhone アプリ
 
 ### 新規作成（Watch アプリ側）
 
-```
+```text
 companion/companion Watch App Watch App/
   ├── HeartRateWorkoutManager.swift   # HKWorkoutSession + 心拍取得
   ├── WatchSessionManager.swift       # WCSession でiPhoneへ送信
@@ -47,14 +47,14 @@ companion/companion Watch App Watch App/
 
 ### 新規作成（iPhone アプリ側）
 
-```
+```text
 companion/companion/
   └── WatchConnectivityManager.swift  # WCSession でWatch から受信
 ```
 
 ### 変更（iPhone アプリ側）
 
-```
+```text
 companion/companion/
   ├── HealthKitManager.swift          # フォールバック用として残す（簡略化）
   ├── ContentView.swift               # WatchConnectivityManager を参照
@@ -219,7 +219,7 @@ class WatchConnectivityManager: NSObject, WCSessionDelegate, ObservableObject {
 
 ## 実装優先順位
 
-```
+```text
 T1 → T2 → T3 → T7 → T8 → T9 → T10   // コアフロー（これだけで動く）
 T4 → T5 → T6 → T11 → T12 → T13      // 品質向上・テスト
 ```
