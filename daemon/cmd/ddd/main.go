@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/kotaro/ddd/daemon/internal/api"
 	"github.com/kotaro/ddd/daemon/internal/hrm"
@@ -40,8 +41,29 @@ func main() {
 		return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
 	e.GET("/ws", h.WS)
+	e.GET("/ws/vscode", h.VscodeWS)
 	e.GET("/heartrate/current", h.GetCurrent)
 	e.POST("/commits", h.PostCommit)
+
+	// Broadcast BPM to VS Code extensions every second
+	go func() {
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			if bpm, ok := buf.Average(); ok {
+				h.BroadcastVscode(map[string]any{
+					"type": "bpm",
+					"bpm":  bpm,
+				})
+			} else {
+				h.BroadcastVscode(map[string]any{
+					"type":   "bpm",
+					"bpm":    0,
+					"status": "stale",
+				})
+			}
+		}
+	}()
 
 	log.Printf("DDD daemon starting on :%s", port)
 	if err := e.Start(":" + port); err != nil && err != http.ErrServerClosed {
