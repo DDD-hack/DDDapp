@@ -10,8 +10,7 @@
   "activationEvents": ["onStartupFinished"],
   "main": "./dist/extension.js",
   "scripts": {
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
+    "compile": "bun build src/extension.ts --outdir dist --target node",
     "lint": "tsc --noEmit",
     "package": "vsce package"
   },

@@ -153,9 +153,11 @@ func (h *Handler) VscodeWS(c echo.Context) error {
 // BroadcastVscode sends a JSON message to all connected VS Code extensions.
 func (h *Handler) BroadcastVscode(msg any) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
+	conns := make([]*websocket.Conn, len(h.vscodeConns))
+	copy(conns, h.vscodeConns)
+	h.mu.Unlock()
 
-	for _, conn := range h.vscodeConns {
+	for _, conn := range conns {
 		if err := conn.WriteJSON(msg); err != nil {
 			// Errors will be cleaned up on next read failure
 			continue
