@@ -2,7 +2,7 @@
 // Reads DDD-BPM trailers from PR commits and outputs a Mermaid PR comment.
 // Usage: node generate-graph.js <base-sha> <head-sha>
 
-const { execSync } = require("child_process");
+const { execFileSync } = require("child_process");
 
 const baseSha = process.argv[2];
 const headSha = process.argv[3];
@@ -12,9 +12,15 @@ if (!baseSha || !headSha) {
   process.exit(1);
 }
 
+const shaRe = /^[0-9a-fA-F]{40}$/;
+if (!shaRe.test(baseSha) || !shaRe.test(headSha)) {
+  console.error("base-sha and head-sha must be full 40-character commit SHAs");
+  process.exit(1);
+}
+
 let logOutput;
 try {
-  logOutput = execSync(`git log ${baseSha}..${headSha} --format="%H %at %s"`, {
+  logOutput = execFileSync("git", ["log", `${baseSha}..${headSha}`, "--format=%H %at %s"], {
     encoding: "utf8",
   });
 } catch (err) {
@@ -45,7 +51,7 @@ const data = [];
 for (const commit of commits) {
   let body;
   try {
-    body = execSync(`git log -1 --format=%B ${commit.hash}`, {
+    body = execFileSync("git", ["log", "-1", "--format=%B", commit.hash], {
       encoding: "utf8",
     });
   } catch {
@@ -115,8 +121,10 @@ const xLabels = data.map((c) => {
   const icon = c.bpm > threshold ? "OK" : "DEAD";
   return `"${c.hash}(${icon})"`;
 });
-const yMin = Math.max(40, Math.min(...bpms) - 20);
-const yMax = Math.min(220, Math.max(...bpms) + 20);
+const rawMin = Math.min(...bpms);
+const rawMax = Math.max(...bpms);
+const yMin = rawMin < 40 ? Math.max(0, rawMin - 20) : 40;
+const yMax = rawMax > 220 ? rawMax + 20 : 220;
 
 const chart = [
   "```mermaid",
