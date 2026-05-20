@@ -13,7 +13,7 @@ struct companionApp: App {
                 .environmentObject(healthKitManager)
                 .environment(daemonClient)
                 .onAppear {
-@                    #if DEBUG
+                    #if DEBUG
                     print("[App] onAppear: コールバック登録")
                     #endif
                     healthKitManager.requestAuthorizationIfNeeded()

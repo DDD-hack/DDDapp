@@ -26,12 +26,6 @@ class HeartRateWorkoutManager: NSObject, ObservableObject {
                 }
                 return
             }
-            guard self.store.authorizationStatus(for: self.heartRateType) == .sharingAuthorized else {
-                DispatchQueue.main.async {
-                    self.errorMessage = "心拍読み取りが許可されていません"
-                }
-                return
-            }
             DispatchQueue.main.async {
                 self.startWorkout()
             }
