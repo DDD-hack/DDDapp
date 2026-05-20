@@ -13,9 +13,12 @@ class HeartRateWorkoutManager: NSObject, ObservableObject {
     @Published var currentBPM: Double = 0
     @Published var errorMessage: String? = nil
 
+    var onBPMUpdate: ((Double) -> Void)?
+
     func requestAuthorizationAndStart() {
         let types: Set<HKSampleType> = [heartRateType]
-        store.requestAuthorization(toShare: [], read: types) { [weak self] _, error in
+        let shareTypes: Set<HKSampleType> = [HKObjectType.workoutType()]
+        store.requestAuthorization(toShare: shareTypes, read: types) { [weak self] _, error in
             if let error {
                 DispatchQueue.main.async {
                     self?.errorMessage = "認証エラー: \(error.localizedDescription)"
@@ -45,8 +48,8 @@ class HeartRateWorkoutManager: NSObject, ObservableObject {
         builder?.delegate = self
         session?.delegate = self
 
-        // beginCollection は session が .running になってからデリゲートで呼ぶ
         session?.startActivity(with: Date())
+        print("[HRM] startActivity called — waiting for .running state")
     }
 
     func stopWorkout() {
@@ -58,11 +61,15 @@ class HeartRateWorkoutManager: NSObject, ObservableObject {
         }
     }
 
-    // 測定が途切れた場合でも最後の値を再送
+    func forceResend() {
+        guard currentBPM > 0 else { return }
+        onBPMUpdate?(currentBPM)
+    }
+
     private func startKeepAliveTimer() {
-        keepAliveTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+        keepAliveTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             guard let self, self.currentBPM > 0 else { return }
-            WatchSessionManager.shared.send(bpm: self.currentBPM)
+            self.onBPMUpdate?(self.currentBPM)
         }
     }
 }
@@ -78,14 +85,14 @@ extension HeartRateWorkoutManager: HKLiveWorkoutBuilderDelegate {
 
         DispatchQueue.main.async { [weak self] in
             self?.currentBPM = bpm
-            WatchSessionManager.shared.send(bpm: bpm)
+            self?.onBPMUpdate?(bpm)
         }
     }
 }
 
 extension HeartRateWorkoutManager: HKWorkoutSessionDelegate {
     func workoutSession(_ workoutSession: HKWorkoutSession, didChangeTo toState: HKWorkoutSessionState, from fromState: HKWorkoutSessionState, date: Date) {
-        // .running になってから beginCollection を呼ぶ（これが正しい順序）
+        print("[HRM] state: \(fromState.rawValue) → \(toState.rawValue)")
         if toState == .running {
             builder?.beginCollection(withStart: date) { _, _ in }
             DispatchQueue.main.async { [weak self] in
