@@ -89,3 +89,63 @@ func (s *Store) SaveCommitAttempt(ctx context.Context, repoPath, commitHash stri
 	}
 	return nil
 }
+
+// CommitAttempt is a read model for the commit_attempts table.
+type CommitAttempt struct {
+	ID          int64     `json:"id"`
+	RepoPath    string    `json:"repo_path"`
+	CommitHash  string    `json:"commit_hash"`
+	BPM         int       `json:"bpm"`
+	Result      string    `json:"result"`
+	AttemptedAt time.Time `json:"attempted_at"`
+}
+
+// HeartRateSample is a read model for the heart_rate_samples table.
+type HeartRateSample struct {
+	ID         int64     `json:"id"`
+	BPM        int       `json:"bpm"`
+	RecordedAt time.Time `json:"recorded_at"`
+	Source     string    `json:"source"`
+}
+
+// GetCommitAttempts returns the most recent commit attempts, newest first.
+func (s *Store) GetCommitAttempts(ctx context.Context, limit int) ([]CommitAttempt, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, repo_path, COALESCE(commit_hash, ''), bpm_at_commit, result, attempted_at
+		 FROM commit_attempts ORDER BY attempted_at DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("get commit attempts: %w", err)
+	}
+	defer rows.Close()
+
+	var out []CommitAttempt
+	for rows.Next() {
+		var r CommitAttempt
+		if err := rows.Scan(&r.ID, &r.RepoPath, &r.CommitHash, &r.BPM, &r.Result, &r.AttemptedAt); err != nil {
+			return nil, fmt.Errorf("scan commit attempt: %w", err)
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// GetHeartRateSamples returns the most recent heart rate samples, newest first.
+func (s *Store) GetHeartRateSamples(ctx context.Context, limit int) ([]HeartRateSample, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, bpm, recorded_at, source
+		 FROM heart_rate_samples ORDER BY recorded_at DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("get heart rate samples: %w", err)
+	}
+	defer rows.Close()
+
+	var out []HeartRateSample
+	for rows.Next() {
+		var r HeartRateSample
+		if err := rows.Scan(&r.ID, &r.BPM, &r.RecordedAt, &r.Source); err != nil {
+			return nil, fmt.Errorf("scan heart rate sample: %w", err)
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
