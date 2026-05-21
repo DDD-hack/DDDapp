@@ -1,8 +1,10 @@
 "use client";
 
 import { useDaemon } from "./hooks/useDaemon";
+import { useCommits } from "./hooks/useCommits";
 import { BpmGauge } from "./components/BpmGauge";
 import { CommitFeed } from "./components/CommitFeed";
+import { CommitChart } from "./components/CommitChart";
 
 const STATUS_LABEL: Record<string, string> = {
   connected: "● LIVE",
@@ -18,6 +20,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function Home() {
   const { bpm, stale, status, commits } = useDaemon();
+  const { commits: history, error: historyError } = useCommits(100);
 
   const accepted = commits.filter((c) => c.result === "accepted").length;
   const rejected = commits.filter((c) => c.result === "rejected").length;
@@ -75,6 +78,16 @@ export default function Home() {
           </div>
         </aside>
       </div>
+
+      {/* History chart */}
+      {!historyError && (
+        <section className="border-t border-zinc-900 px-8 py-6">
+          <h2 className="text-[10px] font-semibold tracking-widest text-zinc-600 mb-4">
+            COMMIT HISTORY
+          </h2>
+          <CommitChart commits={history} />
+        </section>
+      )}
 
       {/* Footer */}
       <footer className="px-8 py-3 border-t border-zinc-900 text-center text-xs text-zinc-700 tracking-widest">
