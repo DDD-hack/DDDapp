@@ -4,6 +4,13 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); }
+  15% { transform: scale(1.18); }
+  30% { transform: scale(1); }
+  45% { transform: scale(1.12); }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
