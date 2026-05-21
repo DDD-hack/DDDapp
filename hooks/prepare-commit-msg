@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Appends DDDD-BPM trailer to commit message if BPM was recorded by ddd-hook.
+# Appends DDD-BPM trailer to commit message if BPM was recorded by ddd-hook.
 set -euo pipefail
 
 BPM_FILE="$(git rev-parse --git-dir)/DDD_BPM"
 if [ -f "$BPM_FILE" ]; then
     BPM=$(cat "$BPM_FILE")
     rm -f "$BPM_FILE"
-    git interpret-trailers --in-place --trailer "DDDD-BPM: $BPM" "$1"
+    git interpret-trailers --in-place --trailer "DDD-BPM: $BPM" "$1"
 fi
