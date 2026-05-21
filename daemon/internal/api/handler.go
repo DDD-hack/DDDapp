@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"strconv"
 	"sync"
 	"time"
 
@@ -163,6 +164,52 @@ func (h *Handler) BroadcastVscode(msg any) {
 			continue
 		}
 	}
+}
+
+// GetCommits returns recent commit attempts from the database.
+// Query param: limit (default 50, max 200)
+func (h *Handler) GetCommits(c echo.Context) error {
+	limit := 50
+	if v := c.QueryParam("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			if n > 200 {
+				n = 200
+			}
+			limit = n
+		}
+	}
+	rows, err := h.db.GetCommitAttempts(c.Request().Context(), limit)
+	if err != nil {
+		c.Logger().Warnf("get commits: %v", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to query"})
+	}
+	if rows == nil {
+		rows = []store.CommitAttempt{}
+	}
+	return c.JSON(http.StatusOK, rows)
+}
+
+// GetHeartRateHistory returns recent heart rate samples from the database.
+// Query param: limit (default 200, max 1000)
+func (h *Handler) GetHeartRateHistory(c echo.Context) error {
+	limit := 200
+	if v := c.QueryParam("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			if n > 1000 {
+				n = 1000
+			}
+			limit = n
+		}
+	}
+	rows, err := h.db.GetHeartRateSamples(c.Request().Context(), limit)
+	if err != nil {
+		c.Logger().Warnf("get heartrate history: %v", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to query"})
+	}
+	if rows == nil {
+		rows = []store.HeartRateSample{}
+	}
+	return c.JSON(http.StatusOK, rows)
 }
 
 // GetCurrent returns the current average BPM for the git hook.

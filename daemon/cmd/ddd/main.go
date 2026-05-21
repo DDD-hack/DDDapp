@@ -43,6 +43,8 @@ func main() {
 	e.GET("/ws", h.WS)
 	e.GET("/ws/vscode", h.VscodeWS)
 	e.GET("/heartrate/current", h.GetCurrent)
+	e.GET("/heartrate/history", h.GetHeartRateHistory)
+	e.GET("/commits", h.GetCommits)
 	e.POST("/commits", h.PostCommit)
 
 	// Broadcast BPM to VS Code extensions every second
