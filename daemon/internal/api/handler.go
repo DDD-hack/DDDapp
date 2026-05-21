@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,7 +27,7 @@ var upgrader = websocket.Upgrader{
 			return false
 		}
 		host := u.Hostname()
-		return host == "localhost" || host == "127.0.0.1" || host == "::1"
+		return host == "localhost" || host == "127.0.0.1" || host == "::1" || strings.HasSuffix(host, ".vercel.app") || host == "vercel.app"
 	},
 }
 
