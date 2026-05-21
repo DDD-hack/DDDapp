@@ -5,6 +5,7 @@ import { useCommits } from "./hooks/useCommits";
 import { BpmGauge } from "./components/BpmGauge";
 import { CommitFeed } from "./components/CommitFeed";
 import { CommitChart } from "./components/CommitChart";
+import { PassionRanking } from "./components/PassionRanking";
 
 const STATUS_LABEL: Record<string, string> = {
   connected: "● LIVE",
@@ -79,13 +80,21 @@ export default function Home() {
         </aside>
       </div>
 
-      {/* History chart */}
+      {/* History chart + Passion ranking */}
       {!historyError && (
-        <section className="border-t border-zinc-900 px-8 py-6">
-          <h2 className="text-[10px] font-semibold tracking-widest text-zinc-600 mb-4">
-            COMMIT HISTORY
-          </h2>
-          <CommitChart commits={history} />
+        <section className="border-t border-zinc-900 px-8 py-6 flex flex-col xl:flex-row gap-8">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-[10px] font-semibold tracking-widest text-zinc-600 mb-4">
+              COMMIT HISTORY
+            </h2>
+            <CommitChart commits={history} />
+          </div>
+          <div className="xl:w-96">
+            <h2 className="text-[10px] font-semibold tracking-widest text-zinc-600 mb-4">
+              PASSION RANKING
+            </h2>
+            <PassionRanking commits={history} />
+          </div>
         </section>
       )}
 
