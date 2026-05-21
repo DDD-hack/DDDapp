@@ -6,6 +6,7 @@ import { BpmGauge } from "./components/BpmGauge";
 import { CommitFeed } from "./components/CommitFeed";
 import { CommitChart } from "./components/CommitChart";
 import { PassionRanking } from "./components/PassionRanking";
+import { AuthButton } from "./components/AuthButton";
 
 const STATUS_LABEL: Record<string, string> = {
   connected: "● LIVE",
@@ -38,9 +39,12 @@ export default function Home() {
           <span className="text-2xl font-black tracking-widest">DDD</span>
           <span className="text-xs text-zinc-600 tracking-widest mt-1">DOKI DOKI DEVELOPMENT</span>
         </div>
-        <span className={`text-xs font-mono font-semibold tracking-widest ${STATUS_COLOR[status]}`}>
-          {STATUS_LABEL[status]}
-        </span>
+        <div className="flex items-center gap-5">
+          <span className={`text-xs font-mono font-semibold tracking-widest ${STATUS_COLOR[status]}`}>
+            {STATUS_LABEL[status]}
+          </span>
+          <AuthButton />
+        </div>
       </header>
 
       {/* Body */}
