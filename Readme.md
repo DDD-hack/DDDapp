@@ -174,3 +174,19 @@ mise run hooks:uninstall  # pre-commit hook をアンインストール (dddd un
 ```bash
 mise tasks
 ```
+
+## 起動方法
+
+### 1. デーモンを起動する
+mise run daemon:run
+
+### 2. VS Code 拡張を開発モードで起動する
+VS Code で F5 キーを押す（Extension Development Host が立ち上がる）
+
+### 3. Apple Watch コンパニオンアプリを起動する
+Watch 側で心拍計測を開始すると、デーモンに自動送信される
+
+### 4. コミットする
+通常通り git commit すると、心拍数に応じて演出が表示される
+- 閾値（デフォルト120bpm）以上 → 🔥 PASSION COMMIT ACCEPTED
+- 閾値未満 → ❌ コミット拒否 + ジョークサジェスト
