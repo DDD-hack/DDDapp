@@ -23,12 +23,22 @@ export const isFirebaseConfigured: boolean = Boolean(
 );
 
 /**
- * Firebase アプリ本体。
+ * Firebase アプリ本体。環境変数が未設定の場合は null。
+ *
+ * 必須キー（apiKey など）が undefined のまま initializeApp() を呼ぶと
+ * Firebase SDK が実行時エラーを投げ、本モジュールを import した
+ * ダッシュボード全体がモジュール評価時点でクラッシュする。
+ * そのため未設定時は初期化自体をスキップし null をエクスポートして、
+ * 「ローカルのみ」モードで動作させる。
+ *
  * Next.js の Fast Refresh / SSR で本モジュールが複数回評価されても
  * 二重初期化しないよう、既存インスタンスがあれば再利用する。
  */
-export const app: FirebaseApp =
-  getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+export const app: FirebaseApp | null = isFirebaseConfigured
+  ? getApps().length === 0
+    ? initializeApp(firebaseConfig)
+    : getApp()
+  : null;
 
-/** Firebase Authentication インスタンス。 */
-export const auth: Auth = getAuth(app);
+/** Firebase Authentication インスタンス。未設定時は null。 */
+export const auth: Auth | null = app ? getAuth(app) : null;
