@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/kotaro/ddd/daemon/internal/api"
@@ -17,6 +18,7 @@ func main() {
 	viper.SetEnvPrefix("DDD")
 	viper.AutomaticEnv()
 	viper.SetDefault("DAEMON_PORT", "8765")
+	viper.SetDefault("ALLOWED_ORIGINS", "")
 
 	port := viper.GetString("DAEMON_PORT")
 
@@ -37,8 +39,22 @@ func main() {
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 
+	allowedOriginsStr := viper.GetString("ALLOWED_ORIGINS")
+	var allowedOrigins []string
+	if allowedOriginsStr != "" {
+		for _, origin := range strings.Split(allowedOriginsStr, ",") {
+			trimmed := strings.TrimSpace(origin)
+			if trimmed != "" {
+				allowedOrigins = append(allowedOrigins, trimmed)
+			}
+		}
+	}
+	if len(allowedOrigins) == 0 {
+		allowedOrigins = []string{"http://localhost:3000"}
+	}
+
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: []string{"http://localhost:3000", "https://*.vercel.app"},
+		AllowOrigins: allowedOrigins,
 		AllowMethods: []string{http.MethodGet, http.MethodPost},
 		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
 	}))

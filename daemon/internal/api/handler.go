@@ -13,6 +13,7 @@ import (
 	"github.com/kotaro/ddd/daemon/internal/hrm"
 	"github.com/kotaro/ddd/daemon/internal/store"
 	"github.com/labstack/echo/v4"
+	"github.com/spf13/viper"
 )
 
 var upgrader = websocket.Upgrader{
@@ -27,7 +28,43 @@ var upgrader = websocket.Upgrader{
 			return false
 		}
 		host := u.Hostname()
-		return host == "localhost" || host == "127.0.0.1" || host == "::1" || strings.HasSuffix(host, ".vercel.app") || host == "vercel.app"
+
+		// Localhost and internal loopback origins are always allowed.
+		if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+			return true
+		}
+
+		// Dynamically validate against ALLOWED_ORIGINS env variable
+		allowedOriginsStr := viper.GetString("ALLOWED_ORIGINS")
+		if allowedOriginsStr != "" {
+			for _, allowed := range strings.Split(allowedOriginsStr, ",") {
+				trimmed := strings.TrimSpace(allowed)
+				if trimmed == "" {
+					continue
+				}
+				parsedAllowed, err := url.Parse(trimmed)
+				if err == nil {
+					allowedHost := parsedAllowed.Hostname()
+					if allowedHost == host {
+						return true
+					}
+					// Support simple wildcard suffixes (e.g. *.vercel.app -> strings.HasSuffix)
+					if strings.HasPrefix(allowedHost, "*.") {
+						suffix := allowedHost[1:] // e.g. ".vercel.app"
+						if strings.HasSuffix(host, suffix) {
+							return true
+						}
+					}
+				} else {
+					// Fallback to exact match if parsing as URL fails
+					if trimmed == host {
+						return true
+					}
+				}
+			}
+		}
+
+		return false
 	},
 }
 
@@ -172,12 +209,14 @@ func (h *Handler) BroadcastVscode(msg any) {
 func (h *Handler) GetCommits(c echo.Context) error {
 	limit := 50
 	if v := c.QueryParam("limit"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			if n > 200 {
-				n = 200
-			}
-			limit = n
+		n, err := strconv.Atoi(v)
+		if err != nil || n <= 0 {
+			return echo.NewHTTPError(http.StatusBadRequest, "limit must be a positive integer")
 		}
+		if n > 200 {
+			n = 200
+		}
+		limit = n
 	}
 	rows, err := h.db.GetCommitAttempts(c.Request().Context(), limit)
 	if err != nil {
@@ -195,12 +234,14 @@ func (h *Handler) GetCommits(c echo.Context) error {
 func (h *Handler) GetHeartRateHistory(c echo.Context) error {
 	limit := 200
 	if v := c.QueryParam("limit"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			if n > 1000 {
-				n = 1000
-			}
-			limit = n
+		n, err := strconv.Atoi(v)
+		if err != nil || n <= 0 {
+			return echo.NewHTTPError(http.StatusBadRequest, "limit must be a positive integer")
 		}
+		if n > 1000 {
+			n = 1000
+		}
+		limit = n
 	}
 	rows, err := h.db.GetHeartRateSamples(c.Request().Context(), limit)
 	if err != nil {

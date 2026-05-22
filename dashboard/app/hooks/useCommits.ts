@@ -21,28 +21,39 @@ export function useCommits(limit = 100) {
 
   useEffect(() => {
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let inFlight = false;
+    let controller: AbortController | null = null;
 
     async function fetch_() {
+      if (inFlight || cancelled) return;
+      inFlight = true;
+      controller = new AbortController();
       try {
-        const res = await fetch(`${DAEMON_BASE}/commits?limit=${limit}`);
+        const res = await fetch(`${DAEMON_BASE}/commits?limit=${limit}`, {
+          signal: controller.signal,
+        });
         if (!res.ok) throw new Error(`status ${res.status}`);
         const data: CommitRecord[] = await res.json();
         if (!cancelled) {
           setCommits(data);
           setError(false);
         }
-      } catch {
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") return;
         if (!cancelled) setError(true);
       } finally {
+        inFlight = false;
         if (!cancelled) setLoading(false);
+        if (!cancelled) timer = setTimeout(fetch_, POLL_INTERVAL);
       }
     }
 
     fetch_();
-    const id = setInterval(fetch_, POLL_INTERVAL);
     return () => {
       cancelled = true;
-      clearInterval(id);
+      controller?.abort();
+      if (timer) clearTimeout(timer);
     };
   }, [limit]);
 

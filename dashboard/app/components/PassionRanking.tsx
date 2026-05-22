@@ -28,7 +28,7 @@ function getTitle(s: RepoStats): string | null {
 }
 
 function repoName(path: string): string {
-  return path.split("/").filter(Boolean).pop() ?? path;
+  return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 }
 
 type Props = {

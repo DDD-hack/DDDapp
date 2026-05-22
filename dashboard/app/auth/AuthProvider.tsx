@@ -62,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       console.error("Google ログインに失敗しました:", err);
+      throw err;
     }
   }
 
@@ -71,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await firebaseSignOut(auth!);
     } catch (err) {
       console.error("ログアウトに失敗しました:", err);
+      throw err;
     }
   }
 
