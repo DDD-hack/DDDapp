@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-const DAEMON_WS = "ws://localhost:8765/ws/vscode";
+const DAEMON_WS = process.env.NEXT_PUBLIC_DAEMON_WS_URL || "ws://localhost:8765/ws/vscode";
 const RECONNECT_DELAY = 5000;
 
 export type ConnectionStatus = "connecting" | "connected" | "disconnected";
