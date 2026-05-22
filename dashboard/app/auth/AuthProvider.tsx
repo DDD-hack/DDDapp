@@ -46,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isFirebaseConfigured || !auth) return;
 
-    const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+    const unsubscribe = onAuthStateChanged(auth!, (nextUser) => {
       setUser(nextUser);
       setLoading(false);
     });
@@ -56,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function signIn() {
     if (!isFirebaseConfigured || !auth) return;
     try {
-      await signInWithPopup(auth, new GoogleAuthProvider());
+      await signInWithPopup(auth!, new GoogleAuthProvider());
     } catch (err) {
       if (err instanceof FirebaseError && IGNORED_AUTH_CODES.has(err.code)) {
         return;
@@ -68,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function signOut() {
     if (!isFirebaseConfigured || !auth) return;
     try {
-      await firebaseSignOut(auth);
+      await firebaseSignOut(auth!);
     } catch (err) {
       console.error("ログアウトに失敗しました:", err);
     }
