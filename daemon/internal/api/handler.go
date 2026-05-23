@@ -81,6 +81,7 @@ type Handler struct {
 	session *Session
 
 	discordWebhookURL string // 空文字なら通知しない
+	thresholdBPM      int    // コミット許可の閾値（デフォルト 120）
 
 	mu          sync.Mutex
 	vscodeConns []*websocket.Conn
@@ -91,18 +92,23 @@ func NewHandler(buf *hrm.Buffer, db *store.Store, fs *store.FirestoreClient, rtd
 		session = NewSession()
 	}
 	return &Handler{
-		buf:         buf,
-		db:          db,
-		fs:          fs,
-		rtdb:        rtdb,
-		session:     session,
-		vscodeConns: make([]*websocket.Conn, 0),
+		buf:          buf,
+		db:           db,
+		fs:           fs,
+		rtdb:         rtdb,
+		session:      session,
+		thresholdBPM: 120,
+		vscodeConns:  make([]*websocket.Conn, 0),
 	}
 }
 
 // SetDiscordWebhookURL configures the Discord webhook URL for commit notifications.
 // An empty string disables notifications.
 func (h *Handler) SetDiscordWebhookURL(u string) { h.discordWebhookURL = u }
+
+// SetThresholdBPM sets the BPM threshold used for notification labels.
+// Must match DDD_THRESHOLD_BPM to keep labels consistent with commit acceptance.
+func (h *Handler) SetThresholdBPM(t int) { h.thresholdBPM = t }
 
 // Session returns the active dashboard session (uid / displayName holder).
 // 起動時の broadcast goroutine から参照したいので exported にしている。
@@ -218,25 +224,27 @@ func (h *Handler) PostCommit(c echo.Context) error {
 	})
 
 	uid, displayName, hasSession := h.session.Current()
+	parent := c.Request().Context()
 
 	// RTDB へのバックグラウンド書き込み（uid 既知のときのみ）。
 	// /commits/{uid} 配下に push-id 付きでコミット結果を追記する。
 	if h.rtdb != nil && hasSession {
-		go func(uid, repoPath, hash, result string, bpm int) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		go func(parent context.Context, uid, repoPath, hash, result string, bpm int) {
+			ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 			defer cancel()
 			if err := h.rtdb.AddCommit(ctx, uid, repoPath, hash, bpm, result); err != nil {
 				log.Printf("rtdb: add commit: %v", err)
 			}
-		}(uid, req.RepoPath, req.CommitHash, req.Result, req.BPM)
+		}(parent, uid, req.RepoPath, req.CommitHash, req.Result, req.BPM)
 	}
 
 	// Discord 通知（webhook 未設定なら no-op）。
 	if h.discordWebhookURL != "" {
+		threshold := h.thresholdBPM
 		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 			defer cancel()
-			if err := discord.Send(ctx, h.discordWebhookURL, commitPayload(displayName, req.RepoPath, req.CommitHash, req.Result, req.BPM)); err != nil {
+			if err := discord.Send(ctx, h.discordWebhookURL, commitPayload(displayName, req.RepoPath, req.CommitHash, req.Result, req.BPM, threshold)); err != nil {
 				log.Printf("discord: %v", err)
 			}
 		}()
@@ -379,7 +387,7 @@ func (h *Handler) GetHeartRateHistory(c echo.Context) error {
 }
 
 // commitPayload builds a Discord embed for a commit result.
-func commitPayload(displayName, repoPath, commitHash, result string, bpm int) discord.Payload {
+func commitPayload(displayName, repoPath, commitHash, result string, bpm, threshold int) discord.Payload {
 	color := 0x2ECC71 // green
 	title := "✅ COMMIT ACCEPTED"
 	if result != "accepted" {
@@ -404,7 +412,7 @@ func commitPayload(displayName, repoPath, commitHash, result string, bpm int) di
 	switch {
 	case bpm > 150:
 		bpmLabel += " 🔥"
-	case bpm >= 120:
+	case bpm >= threshold:
 		bpmLabel += " 💪"
 	default:
 		bpmLabel += " 😰"

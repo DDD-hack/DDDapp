@@ -74,6 +74,7 @@ func main() {
 	buf := hrm.NewBuffer()
 	h := api.NewHandler(buf, db, fs, rtdb, api.NewSession())
 	h.SetDiscordWebhookURL(viper.GetString("DISCORD_WEBHOOK_URL"))
+	h.SetThresholdBPM(viper.GetInt("DDD_THRESHOLD_BPM"))
 
 	e := echo.New()
 	e.Use(middleware.Logger())
