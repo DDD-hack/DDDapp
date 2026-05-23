@@ -31,28 +31,33 @@ export function useFirebaseHeartbeat(): MemberHeartbeat[] {
 
       const raw = snap.val() as Record<
         string,
-        { name?: string; email?: string }
+        Partial<{ name: string; email: string }> | null
       > | null;
 
-      // onValue コールバック内でのみ setState — lint OK、かつ uid を紐づける
-      if (!raw) {
+      if (!raw || typeof raw !== "object") {
         setMembersOwnerUid(currentUid);
         setMembers([]);
         return;
       }
 
-      const initial: MemberHeartbeat[] = Object.entries(raw).map(
-        ([uid, data]) => ({
-          uid,
-          name: data.name ?? data.email ?? uid,
-          bpm: null,
-          updatedAt: null,
-        }),
+      const entries = Object.entries(raw).filter(
+        (e): e is [string, Partial<{ name: string; email: string }>] =>
+          !!e[1] && typeof e[1] === "object",
       );
+
+      const initial: MemberHeartbeat[] = entries.map(([uid, data]) => ({
+        uid,
+        name:
+          typeof data.name === "string" && data.name.length > 0
+            ? data.name
+            : uid,
+        bpm: null,
+        updatedAt: null,
+      }));
       setMembersOwnerUid(currentUid);
       setMembers(initial);
 
-      Object.keys(raw).forEach((uid) => {
+      entries.forEach(([uid]) => {
         const hbRef = ref(db, `users/${uid}`);
         const unsub = onValue(hbRef, (hbSnap) => {
           const data = hbSnap.val() as

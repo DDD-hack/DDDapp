@@ -15,40 +15,42 @@ function calcPassion(avgBpm: number, commits: number): number {
 async function fetchAllMemberEntries(): Promise<MemberRankEntry[]> {
   if (!rtdb) return [];
 
-  // /members から全メンバー取得
-  const membersSnap = await get(ref(rtdb, "members"));
+  // /members と /commits を同時に1回ずつ取得（N+1 → 2 reads）
+  const [membersSnap, allCommitsSnap] = await Promise.all([
+    get(ref(rtdb, "members")),
+    get(ref(rtdb, "commits")),
+  ]);
+
   const membersData = membersSnap.val() as Record<string, Member> | null;
   if (!membersData) return [];
 
-  const uids = Object.keys(membersData);
+  const allCommitsData = allCommitsSnap.val() as
+    | Record<string, Record<string, CommitRecord>>
+    | null;
 
-  // 全メンバーのコミットを並列取得
-  const commitSnaps = await Promise.all(
-    uids.map((uid) => get(ref(rtdb!, `commits/${uid}`))),
-  );
+  return (Object.entries(membersData) as [string, Member | null][])
+    .filter((e): e is [string, Member] => !!e[1] && typeof e[1] === "object")
+    .map(([uid, m]) => {
+      const rawCommits = allCommitsData?.[uid] ?? {};
+      const commits = Object.values(rawCommits);
+      const bpms = commits.map((c) => c.bpm).filter((b) => b > 0);
+      const count = commits.length;
+      const maxBpm = bpms.length ? Math.max(...bpms) : 0;
+      const avgBpm = bpms.length
+        ? Math.round(bpms.reduce((s, b) => s + b, 0) / bpms.length)
+        : 0;
 
-  return uids.map((uid, i) => {
-    const m = membersData[uid];
-    const rawCommits = commitSnaps[i].val() as Record<string, CommitRecord> | null;
-    const commits = Object.values(rawCommits ?? {});
-    const bpms = commits.map((c) => c.bpm).filter((b) => b > 0);
-    const count = commits.length;
-    const maxBpm = bpms.length ? Math.max(...bpms) : 0;
-    const avgBpm = bpms.length
-      ? Math.round(bpms.reduce((s, b) => s + b, 0) / bpms.length)
-      : 0;
-
-    return {
-      uid,
-      name: m.name ?? m.email ?? uid,
-      teamId: m.teamId ?? "default",
-      teamName: m.teamId ?? "DDD",
-      commits: count,
-      maxBpm,
-      avgBpm,
-      passion: calcPassion(avgBpm, count),
-    };
-  });
+      return {
+        uid,
+        name: m.name ?? m.email ?? uid,
+        teamId: m.teamId ?? "DDD",
+        teamName: m.teamId ?? "DDD",
+        commits: count,
+        maxBpm,
+        avgBpm,
+        passion: calcPassion(avgBpm, count),
+      };
+    });
 }
 
 function buildTeamEntries(members: MemberRankEntry[]): TeamRankEntry[] {
