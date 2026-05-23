@@ -9,8 +9,51 @@
   },
   "activationEvents": ["onStartupFinished"],
   "main": "./dist/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "DDD",
+      "properties": {
+        "ddd.presentation.intensity": {
+          "type": "string",
+          "enum": ["calm", "normal", "intense"],
+          "default": "normal",
+          "description": "演出の強度。calm = トーストのみ / normal = 標準演出 / intense = 振動など追加"
+        },
+        "ddd.presentation.flashEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "コミット時の予告フラッシュ（鼓動 → 白フラッシュ）を表示する"
+        },
+        "ddd.presentation.soundEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "効果音を鳴らす"
+        },
+        "ddd.presentation.editorDecorations": {
+          "type": "boolean",
+          "default": true,
+          "description": "コミット時にカーソル行をハイライトする"
+        },
+        "ddd.presentation.comboTracking": {
+          "type": "boolean",
+          "default": true,
+          "description": "連続コミットのコンボ数を表示する"
+        },
+        "ddd.presentation.fullScreenMode": {
+          "type": "boolean",
+          "default": true,
+          "description": "Tier 4 (LEGENDARY) 以上でサイドバーを一時的に閉じ、Achievement Card と並べて全画面表示する"
+        },
+        "ddd.presentation.codeInjection": {
+          "type": "boolean",
+          "default": true,
+          "description": "REJECTED 時に編集中ファイルへ「ダメージコメント」を 3 秒だけ挿入する（クリーンなドキュメントのみ対象）"
+        }
+      }
+    }
+  },
   "scripts": {
-    "compile": "bun build src/extension.ts --outdir dist --target node",
+    "compile": "bun build src/extension.ts --outdir dist --target node --external vscode",
     "lint": "tsc --noEmit",
     "package": "vsce package"
   },
