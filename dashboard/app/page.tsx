@@ -7,6 +7,8 @@ import { CommitFeed } from "./components/CommitFeed";
 import { CommitChart } from "./components/CommitChart";
 import { PassionRanking } from "./components/PassionRanking";
 import { AuthButton } from "./components/AuthButton";
+import { SuccessRateCard } from "./components/SuccessRateCard";
+import { MostPassionateCommit } from "./components/MostPassionateCommit";
 import { useAuth } from "./auth/AuthProvider";
 import { LoginPromptBanner } from "./components/LoginPromptBanner";
 
@@ -99,6 +101,12 @@ export default function Home() {
       <div className="px-8 mb-2">
         <LoginPromptBanner />
       </div>
+
+      {/* Success rate */}
+      {!historyError && <SuccessRateCard commits={history} />}
+
+      {/* Most passionate commit */}
+      {!historyError && <MostPassionateCommit commits={history} />}
 
       {/* History chart + Passion ranking */}
       {!historyError && (
