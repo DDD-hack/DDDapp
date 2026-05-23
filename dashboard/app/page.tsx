@@ -10,6 +10,7 @@ import { PassionRanking } from "./components/PassionRanking";
 import { AuthButton } from "./components/AuthButton";
 import { SuccessRateCard } from "./components/SuccessRateCard";
 import { MostPassionateCommit } from "./components/MostPassionateCommit";
+import { MemberBpmPanel } from "./components/MemberBpmPanel";
 import { ContributionHeatmap } from "./components/ContributionHeatmap";
 import { useAuth } from "./auth/AuthProvider";
 import { LoginPromptBanner } from "./components/LoginPromptBanner";
@@ -152,8 +153,10 @@ export default function Home() {
             <LoginPromptBanner />
           </div>
 
-          {/* Success rate - Today's Best only */}
-          {!historyError && <SuccessRateCard commits={history} mode="today" />}
+          {/* Success rate - Today's Best + member BPM */}
+          <SuccessRateCard commits={historyError ? [] : history} mode="today">
+            <MemberBpmPanel />
+          </SuccessRateCard>
 
           {/* History chart */}
           {!historyError && (
