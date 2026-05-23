@@ -2,7 +2,7 @@
   "members": {
     "UID_rina": {
       "name": "rina",
-      "email": "lju99668@gmail.com",
+      "email": "lju@example.com",
       "joinedAt": 1716000000000
     },
     "UID_oto": {
@@ -41,7 +41,7 @@
         "bpm": 95,
         "result": "rejected",
         "repo": "DDDapp",
-        "hash": "",
+        "hash": null,
         "committedAt": 1716000001000
       }
     }

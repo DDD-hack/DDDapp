@@ -38,7 +38,7 @@ export const db: Database | null = app ? getDatabase(app) : null;
 Firebase に保存するデータの「型」を定義したファイル。
 型を決めておくことで、コードを書くときに間違いを自動で検知できる。
 
-```
+```text
 Member       → チームメンバーの情報（名前・メール・参加日）
 Heartbeat    → 現在のBPM（状態：ok / stale / offline）
 CommitRecord → コミット1件の記録（BPM・結果・ハッシュ）
