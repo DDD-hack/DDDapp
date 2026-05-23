@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { exec, spawn } from "child_process";
+import { LockdownController } from "./lockdown";
 
 // ──────────────────────────────────────────────
 // モジュール状態
@@ -11,6 +12,7 @@ let isDeactivating = false;
 let extensionContext: vscode.ExtensionContext;
 let afterglowTimer: NodeJS.Timeout | null = null;
 let activeDecorations: vscode.TextEditorDecorationType[] = [];
+let lockdownController: LockdownController | null = null;
 
 // デモモード: 環境変数で閾値を変更可能（デフォルト120）
 const THRESHOLD = Number(process.env.DDD_THRESHOLD) || 120;
@@ -224,7 +226,16 @@ function handleBpmUpdate(msg: { bpm: number; status?: string }) {
   if (afterglowTimer) return;
 
   const bpm = msg.bpm;
-  if (msg.status === "stale" || bpm === 0) {
+  const stale = msg.status === "stale" || bpm === 0;
+
+  // Lockdown が有効ならステータスバーは Lockdown 側に任せる
+  if (lockdownController && lockdownController.shouldOwnStatusBar()) {
+    lockdownController.setBpm(bpm, stale);
+    lockdownController.updateStatusBar(bpm, stale);
+    return;
+  }
+
+  if (stale) {
     statusBar.text = `$(heart) -- bpm`;
     statusBar.backgroundColor = undefined;
     statusBar.tooltip = "DDD: Stale data";
@@ -1329,6 +1340,10 @@ export function activate(context: vscode.ExtensionContext) {
     }, 1500);
   }
 
+  // Lockdown Mode コントローラ
+  lockdownController = new LockdownController(statusBar);
+  lockdownController.activate(context);
+
   connectWebSocket();
 }
 
@@ -1338,5 +1353,8 @@ export function deactivate() {
   if (afterglowTimer) clearInterval(afterglowTimer);
   activeDecorations.forEach((d) => d.dispose());
   activeDecorations = [];
+  // Lockdown を必ず解除してから終了（ロックされたまま終わると次回起動が困る）
+  lockdownController?.deactivate().catch(() => {/* 無視 */});
+  lockdownController = null;
   if (ws) ws.close();
 }
