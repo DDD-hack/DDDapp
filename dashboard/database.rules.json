@@ -1,0 +1,40 @@
+{
+  "rules": {
+    "members": {
+      ".read": "auth != null && root.child('members').child(auth.uid).exists()",
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid && root.child('members').child($uid).exists()"
+      }
+    },
+    "heartbeat": {
+      ".read": "auth != null && root.child('members').child(auth.uid).exists()",
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "users": {
+      ".read": "auth != null && root.child('members').child(auth.uid).exists()",
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "commits": {
+      ".read": "auth != null && root.child('members').child(auth.uid).exists()",
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "stats": {
+      ".read": "auth != null && root.child('members').child(auth.uid).exists()",
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "heatmap": {
+      ".read": "auth != null && root.child('members').child(auth.uid).exists()",
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    }
+  }
+}
