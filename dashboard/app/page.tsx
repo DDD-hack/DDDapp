@@ -28,12 +28,21 @@ export default function Home() {
   const { commits: history, error: historyError } = useCommits(100);
   const { user, loading, configured, isMember } = useAuth();
 
+  // 認証確認中はローディング画面を表示（ダッシュボードへのフォールスルーを防ぐ）
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-black text-white flex items-center justify-center">
+        <p className="text-xs tracking-widest text-zinc-600 animate-pulse">認証状態を確認中...</p>
+      </main>
+    );
+  }
+
   // 未ログイン → ログイン画面
-  if (!loading && configured && !user) {
+  if (configured && !user) {
     return <LoginScreen />;
   }
   // ログイン済みだが未登録メンバー → エラー付きログイン画面
-  if (!loading && configured && user && !isMember) {
+  if (configured && user && !isMember) {
     return <LoginScreen isUnauthorized email={user.email} />;
   }
 

@@ -64,14 +64,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return onValue(memberRef, (snap) => {
       if (!snap.exists()) {
-        // 初回ログイン時に自動登録
+        // 初回ログイン時に自動登録。楽観的に true にしてフリッカーを防ぐ
+        setIsMember(true);
         set(memberRef, {
           name: user.displayName ?? user.email ?? "unknown",
           email: user.email ?? "",
           joinedAt: Date.now(),
         }).catch(console.error);
+      } else {
+        setIsMember(true);
       }
-      setIsMember(snap.exists());
       setMemberLoading(false);
     });
   }, [user]);
