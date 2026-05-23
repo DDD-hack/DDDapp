@@ -14,12 +14,14 @@ export type MemberHeartbeat = {
 
 export function useFirebaseHeartbeat(): MemberHeartbeat[] {
   const [members, setMembers] = useState<MemberHeartbeat[]>([]);
+  const [membersOwnerUid, setMembersOwnerUid] = useState<string | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
     if (!rtdb || !user) return;
 
     const db = rtdb;
+    const currentUid = user.uid;
     const membersRef = ref(db, "members");
     const hbUnsubs: (() => void)[] = [];
 
@@ -32,7 +34,9 @@ export function useFirebaseHeartbeat(): MemberHeartbeat[] {
         { name?: string; email?: string }
       > | null;
 
+      // onValue コールバック内でのみ setState — lint OK、かつ uid を紐づける
       if (!raw) {
+        setMembersOwnerUid(currentUid);
         setMembers([]);
         return;
       }
@@ -45,6 +49,7 @@ export function useFirebaseHeartbeat(): MemberHeartbeat[] {
           updatedAt: null,
         }),
       );
+      setMembersOwnerUid(currentUid);
       setMembers(initial);
 
       Object.keys(raw).forEach((uid) => {
@@ -73,8 +78,9 @@ export function useFirebaseHeartbeat(): MemberHeartbeat[] {
       unsubMembers();
       hbUnsubs.forEach((u) => u());
     };
-  }, [user]);
+  }, [user?.uid]);
 
-  // user が null のときは state を変えずに空配列を返す（effect 内での同期 setState を避ける）
-  return user ? members : [];
+  // membersOwnerUid が現在の user と一致するときだけ返す
+  // 不一致の間（ユーザー切替直後）は [] を返し旧データを見せない
+  return user?.uid === membersOwnerUid ? members : [];
 }
