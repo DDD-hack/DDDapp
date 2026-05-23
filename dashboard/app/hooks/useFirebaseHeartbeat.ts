@@ -17,10 +17,7 @@ export function useFirebaseHeartbeat(): MemberHeartbeat[] {
   const { user } = useAuth();
 
   useEffect(() => {
-    if (!rtdb || !user) {
-      setMembers([]);
-      return;
-    }
+    if (!rtdb || !user) return;
 
     const db = rtdb;
     const membersRef = ref(db, "members");
@@ -78,5 +75,6 @@ export function useFirebaseHeartbeat(): MemberHeartbeat[] {
     };
   }, [user]);
 
-  return members;
+  // user が null のときは state を変えずに空配列を返す（effect 内での同期 setState を避ける）
+  return user ? members : [];
 }
