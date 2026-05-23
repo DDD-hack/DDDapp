@@ -156,7 +156,7 @@ flowchart TB
 
 ### Debug Console から評価
 画面下部の **DEBUG CONSOLE** に直接式を打てる:
-```
+```console
 > this.currentBpm
 142
 > this.cfg
@@ -166,7 +166,7 @@ flowchart TB
 ```
 
 → **任意の JS を実行できる**ので、状態を変えてしまうこともできる:
-```
+```console
 > this.graceRemaining = 100
 100
 ```

@@ -8,7 +8,7 @@
 
 ## 全体アーキテクチャ・データフロー
 
-```
+```text
 [Apple Watch (companion)]
       │ (ローカルWiFi/Bluetooth)
       ▼
@@ -46,14 +46,14 @@
 
 ### Component 1: Go Daemon (Firestore バックグラウンド同期の実装)
 
-#### [MODIFY] [go.mod](file:///Users/kotaro/ddd/daemon/go.mod)
+#### [MODIFY] `daemon/go.mod`
 - Firebase Go Admin SDK (`firebase.google.com/go/v4`) および Firestore クライアントの依存パッケージを追加します。
 
-#### [NEW] [firebase.go](file:///Users/kotaro/ddd/daemon/internal/store/firebase.go)
+#### [NEW] `daemon/internal/store/firebase.go`
 - Firebase アプリの初期化と Firestore クライアントのシングルトン管理を行います。
 - サービスアカウント JSON ファイルが存在しない場合は、サイレントにローカル専用モードで動作を続行する（Fail-safe設計）。
 
-#### [MODIFY] [handler.go](file:///Users/kotaro/ddd/daemon/internal/api/handler.go)
+#### [MODIFY] `daemon/internal/api/handler.go`
 - WebSocket 接続時、クライアント（ダッシュボード）からの `auth_sync` メッセージを受信し、現在アクティブなユーザーID (`uid`) をメモリに保持・更新するハンドラを追加します。
 - 心拍データ（BPM）受信時、アクティブな `uid` が存在すれば、Firestore 上の `users/{uid}` ドキュメントを更新する非同期ゴルーチンを走らせます。
 - コミット結果受信時、`users/{uid}/commits/{commitId}` にコミット履歴ドキュメントを追加します。
@@ -62,14 +62,14 @@
 
 ### Component 2: Dashboard Frontend (Vercel フォールバック表示の実装)
 
-#### [MODIFY] [useDaemon.ts](file:///Users/kotaro/ddd/dashboard/app/hooks/useDaemon.ts)
+#### [MODIFY] `dashboard/app/hooks/useDaemon.ts`
 - WebSocket の接続試行が Mixed Content エラーや接続エラーで `disconnected` になった場合、またはデプロイ環境である場合、**Firestore リアルタイム監視リスナー (`onSnapshot`)** を起動します。
 - ログイン中のユーザーの Firestore パス `users/{uid}` を常時監視し、心拍数（BPM）やステータスを WebSocket 接続時と全く同じ `DaemonState` インターフェースで UI に提供します。
 
-#### [MODIFY] [useCommits.ts](file:///Users/kotaro/ddd/dashboard/app/hooks/useCommits.ts)
+#### [MODIFY] `dashboard/app/hooks/useCommits.ts`
 - 直近コミット履歴の取得において、ローカルデーモンからの API フェッチが失敗した場合、Firestore コレクション `users/{uid}/commits` からクエリ（日付順で降順ソート、制限件数）を行ってコミットリストを取得するようにします。
 
-#### [MODIFY] [AuthProvider.tsx](file:///Users/kotaro/ddd/dashboard/app/auth/AuthProvider.tsx)
+#### [MODIFY] `dashboard/app/auth/AuthProvider.tsx`
 - ダッシュボードがローカル開発環境（`localhost:3000`）で動作しており、かつログインに成功した際、接続中のローカル WebSocket に対して `auth_sync` メッセージを自動送信する処理を追加します。
 
 ---

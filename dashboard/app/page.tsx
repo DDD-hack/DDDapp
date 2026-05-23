@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useDaemon } from "./hooks/useDaemon";
 import { useCommits } from "./hooks/useCommits";
 import { BpmGauge } from "./components/BpmGauge";
@@ -11,6 +12,7 @@ import { SuccessRateCard } from "./components/SuccessRateCard";
 import { MostPassionateCommit } from "./components/MostPassionateCommit";
 import { useAuth } from "./auth/AuthProvider";
 import { LoginPromptBanner } from "./components/LoginPromptBanner";
+import { MemberBpmPanel } from "./components/MemberBpmPanel";
 
 const STATUS_LABEL: Record<string, string> = {
   connected: "● LIVE",
@@ -31,6 +33,7 @@ export default function Home() {
   const { bpm, stale, status, commits } = useDaemon();
   const { commits: history, error: historyError } = useCommits(100);
   const { user, configured } = useAuth();
+  const [tab, setTab] = useState<"today" | "total">("today");
 
   const accepted = commits.filter((c) => c.result === "accepted").length;
   const rejected = commits.filter((c) => c.result === "rejected").length;
@@ -62,9 +65,10 @@ export default function Home() {
 
       {/* Body */}
       <div className="flex flex-1 flex-col lg:flex-row">
-        {/* Left: BPM gauge */}
-        <section className="flex flex-1 items-center justify-center py-16 px-8">
+        {/* Left: BPM gauge + Member BPM */}
+        <section className="flex flex-1 items-center justify-center py-16 px-8 gap-12 flex-wrap">
           <BpmGauge bpm={bpm} stale={stale} />
+          <MemberBpmPanel />
         </section>
 
         {/* Right: commit feed + stats */}
@@ -97,33 +101,52 @@ export default function Home() {
         </aside>
       </div>
 
-      {/* Login Prompt Banner */}
-      <div className="px-8 mb-2">
-        <LoginPromptBanner />
+      {/* Tab bar */}
+      <div className="border-t border-zinc-900 px-8 pt-4 flex gap-6">
+        {(["today", "total"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`text-xs tracking-widest pb-2 border-b-2 transition-colors ${
+              tab === t
+                ? "text-white border-[#F97316]"
+                : "text-zinc-600 border-transparent hover:text-zinc-400"
+            }`}
+          >
+            {t === "today" ? "今日" : "累積"}
+          </button>
+        ))}
       </div>
 
-      {/* Success rate */}
-      {!historyError && <SuccessRateCard commits={history} />}
-
-      {/* Most passionate commit */}
-      {!historyError && <MostPassionateCommit commits={history} />}
-
-      {/* History chart + Passion ranking */}
-      {!historyError && (
-        <section className="border-t border-zinc-900 px-8 py-6 flex flex-col xl:flex-row gap-8">
-          <div className="flex-1 min-w-0">
-            <h2 className="text-[10px] font-semibold tracking-widest text-zinc-600 mb-4">
-              COMMIT HISTORY
-            </h2>
-            <CommitChart commits={history} />
+      {/* Today tab */}
+      {tab === "today" && (
+        <>
+          <div className="px-8 mb-2">
+            <LoginPromptBanner />
           </div>
-          <div className="xl:w-96">
-            <h2 className="text-[10px] font-semibold tracking-widest text-zinc-600 mb-4">
-              PASSION RANKING
-            </h2>
-            <PassionRanking commits={history} />
-          </div>
-        </section>
+          {!historyError && <SuccessRateCard commits={history} />}
+        </>
+      )}
+
+      {/* Total tab */}
+      {tab === "total" && !historyError && (
+        <>
+          <MostPassionateCommit commits={history} />
+          <section className="border-t border-zinc-900 px-8 py-6 flex flex-col xl:flex-row gap-8">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-[10px] font-semibold tracking-widest text-zinc-600 mb-4">
+                COMMIT HISTORY
+              </h2>
+              <CommitChart commits={history} />
+            </div>
+            <div className="xl:w-96">
+              <h2 className="text-[10px] font-semibold tracking-widest text-zinc-600 mb-4">
+                PASSION RANKING
+              </h2>
+              <PassionRanking commits={history} />
+            </div>
+          </section>
+        </>
       )}
 
       {/* Footer */}
