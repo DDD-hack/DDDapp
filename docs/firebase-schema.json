@@ -1,0 +1,71 @@
+{
+  "members": {
+    "UID_rina": {
+      "name": "rina",
+      "email": "lju99668@gmail.com",
+      "joinedAt": 1716000000000
+    },
+    "UID_oto": {
+      "name": "oto",
+      "email": "oto@example.com",
+      "joinedAt": 1716000000000
+    },
+    "UID_utida": {
+      "name": "utida",
+      "email": "utida@example.com",
+      "joinedAt": 1716000000000
+    }
+  },
+  "heartbeat": {
+    "UID_rina": {
+      "bpm": 145,
+      "status": "ok",
+      "updatedAt": 1716000000000
+    },
+    "UID_oto": {
+      "bpm": 98,
+      "status": "stale",
+      "updatedAt": 1716000000000
+    }
+  },
+  "commits": {
+    "UID_rina": {
+      "-pushId_abc123": {
+        "bpm": 145,
+        "result": "accepted",
+        "repo": "DDDapp",
+        "hash": "abc123def456",
+        "committedAt": 1716000000000
+      },
+      "-pushId_def456": {
+        "bpm": 95,
+        "result": "rejected",
+        "repo": "DDDapp",
+        "hash": "",
+        "committedAt": 1716000001000
+      }
+    }
+  },
+  "stats": {
+    "UID_rina": {
+      "deadCount": 3,
+      "totalAccepted": 12,
+      "maxBpm": 189,
+      "lastCommitAt": 1716000001000
+    }
+  },
+  "heatmap": {
+    "UID_rina": {
+      "2026-05-23": {
+        "accepted": 3,
+        "rejected": 2,
+        "maxBpm": 189
+      },
+      "2026-05-22": {
+        "accepted": 5,
+        "rejected": 1,
+        "maxBpm": 175
+      }
+    }
+  }
+}
