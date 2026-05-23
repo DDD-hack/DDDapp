@@ -59,6 +59,26 @@ func OpenRTDB(ctx context.Context, credentialsPath, databaseURL string) (*RTDBCl
 	return &RTDBClient{cli: cli}, nil
 }
 
+// validateUID checks if uid complies with Firebase Realtime Database key constraints.
+func validateUID(uid string) error {
+	if len(uid) > 128 {
+		return fmt.Errorf("uid too long: %d characters", len(uid))
+	}
+	disallowed := []rune{'.', '$', '#', '[', ']', '/'}
+	for _, r := range disallowed {
+		if strings.ContainsRune(uid, r) {
+			return fmt.Errorf("uid contains disallowed character: %q", r)
+		}
+	}
+	for i := 0; i < len(uid); i++ {
+		c := uid[i]
+		if c < 0x20 || c == 0x7F {
+			return fmt.Errorf("uid contains control character: 0x%02X", c)
+		}
+	}
+	return nil
+}
+
 // SetCurrentBpm は users/{uid} の current_bpm / updated_at を 1Hz 想定で更新する。
 //
 // `Update` を使い、他のフィールド（プロフィール等が将来書かれた場合）を消さずに
@@ -67,6 +87,9 @@ func OpenRTDB(ctx context.Context, credentialsPath, databaseURL string) (*RTDBCl
 func (c *RTDBClient) SetCurrentBpm(ctx context.Context, uid string, bpm int) error {
 	if c == nil || c.cli == nil || uid == "" {
 		return nil
+	}
+	if err := validateUID(uid); err != nil {
+		return fmt.Errorf("invalid uid: %w", err)
 	}
 	ref := c.cli.NewRef("users/" + uid)
 	if err := ref.Update(ctx, map[string]any{
@@ -83,6 +106,9 @@ func (c *RTDBClient) SetCurrentBpm(ctx context.Context, uid string, bpm int) err
 func (c *RTDBClient) AddCommit(ctx context.Context, uid, repoPath, commitHash string, bpm int, result string) error {
 	if c == nil || c.cli == nil || uid == "" {
 		return nil
+	}
+	if err := validateUID(uid); err != nil {
+		return fmt.Errorf("invalid uid: %w", err)
 	}
 	ref := c.cli.NewRef("commits/" + uid)
 	if _, err := ref.Push(ctx, map[string]any{

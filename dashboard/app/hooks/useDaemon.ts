@@ -200,6 +200,17 @@ export function useDaemon(): DaemonState {
   useEffect(() => {
     userRef.current = user;
     sendAuthSync(wsRef.current, user);
+    
+    // Clear displayed state asynchronously to avoid set-state-in-effect warning
+    setTimeout(() => {
+      if (unmountedRef.current) return;
+      setBpm(null);
+      setStale(false);
+      if (!user) {
+        setStatus("disconnected");
+      }
+    }, 0);
+
     if (unsubFirestoreRef.current) {
       stopFirestoreFallback();
       if (user && db) {

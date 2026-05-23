@@ -11,7 +11,7 @@
 
 ## トップレベル構造
 
-```
+```json
 {
   "users": {
     "{uid}": {
@@ -21,7 +21,7 @@
   },
   "commits": {
     "{uid}": {
-      "{push-id}": {
+      "pushId": {
         "repo_path":    "/Users/kotaro/ddd",
         "commit_hash":  "abc1234",
         "bpm":          142,

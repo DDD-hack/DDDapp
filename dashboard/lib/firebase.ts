@@ -55,4 +55,4 @@ export const auth: Auth | null = app ? getAuth(app) : null;
  */
 export const db: Firestore | null = app ? getFirestore(app) : null;
 /** Firebase Realtime Database インスタンス。未設定時は null。 */
-export const db: Database | null = app ? getDatabase(app) : null;
+export const rtdb: Database | null = app && firebaseConfig.databaseURL ? getDatabase(app) : null;

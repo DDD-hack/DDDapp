@@ -35,18 +35,19 @@ async function fetchFromFirestore(uid: string, n: number): Promise<CommitRecord[
     fsLimit(n),
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d, i) => {
+  const validDocs = snap.docs.filter((d) => {
+    const data = d.data();
+    return data && data.attemptedAt && typeof data.attemptedAt.toDate === "function";
+  });
+  return validDocs.map((d, i) => {
     const data = d.data() as {
       repoPath?: string;
       commitHash?: string;
       bpm?: number;
       result?: string;
-      attemptedAt?: { toDate?: () => Date };
+      attemptedAt: { toDate: () => Date };
     };
-    const attemptedAt =
-      data.attemptedAt && typeof data.attemptedAt.toDate === "function"
-        ? data.attemptedAt.toDate()
-        : null;
+    const attemptedAt = data.attemptedAt.toDate();
     return {
       // Firestore に数値 ID は無いので、表示順を担保するために配列 index を充てる
       id: i,
@@ -54,7 +55,7 @@ async function fetchFromFirestore(uid: string, n: number): Promise<CommitRecord[
       commit_hash: data.commitHash ?? "",
       bpm: typeof data.bpm === "number" ? data.bpm : 0,
       result: data.result === "rejected" ? "rejected" : "accepted",
-      attempted_at: attemptedAt ? attemptedAt.toISOString() : "",
+      attempted_at: attemptedAt.toISOString(),
     };
   });
 }

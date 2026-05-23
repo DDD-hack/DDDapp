@@ -18,13 +18,14 @@ import (
 func main() {
 	viper.SetEnvPrefix("DDD")
 	viper.AutomaticEnv()
-	viper.SetDefault("DAEMON_PORT", "8765")
+	viper.SetDefault("DDD_DAEMON_PORT", "8765")
 	viper.SetDefault("ALLOWED_ORIGINS", "")
 	viper.SetDefault("FIREBASE_CREDENTIALS", "")
 	viper.SetDefault("FIREBASE_PROJECT_ID", "")
 	viper.SetDefault("FIREBASE_DATABASE_URL", "")
+	viper.SetDefault("DDD_THRESHOLD_BPM", 120)
 
-	port := viper.GetString("DAEMON_PORT")
+	port := viper.GetString("DDD_DAEMON_PORT")
 
 	db, err := store.Open()
 	if err != nil {

@@ -76,3 +76,38 @@ func TestRTDBClient_EmptyUID_IsNoOp(t *testing.T) {
 		t.Errorf("empty uid AddCommit: %v", err)
 	}
 }
+
+func TestValidateUID(t *testing.T) {
+	t.Parallel()
+	validCases := []string{
+		"simple-uid-123",
+		"uid_with_underscores_and_dashes",
+		"normalUIDabcdefghijklmnopqrstuvwxyz",
+	}
+	for _, tc := range validCases {
+		if err := validateUID(tc); err != nil {
+			t.Errorf("expected uid %q to be valid, got error: %v", tc, err)
+		}
+	}
+
+	invalidCases := []struct {
+		uid  string
+		desc string
+	}{
+		{"uid.with.dots", "contains dot"},
+		{"uid$with$dollar", "contains dollar"},
+		{"uid#with#hash", "contains hash"},
+		{"uid[with[brackets", "contains open bracket"},
+		{"uid]with]brackets", "contains close bracket"},
+		{"uid/with/slash", "contains slash"},
+		{"uid\x00withcontrol", "contains null byte"},
+		{"uid\x1Fwithcontrol", "contains control code"},
+		{"uid\x7Fwithcontrol", "contains delete char"},
+		{string(make([]byte, 129)), "too long"},
+	}
+	for _, tc := range invalidCases {
+		if err := validateUID(tc.uid); err == nil {
+			t.Errorf("expected error for %s, got nil", tc.desc)
+		}
+	}
+}

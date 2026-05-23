@@ -280,7 +280,13 @@ func (h *Handler) handleVscodeMessage(c echo.Context, message []byte) {
 	case "auth_sync":
 		h.session.SetAuth(env.UID, env.DisplayName)
 		if env.UID != "" {
-			c.Logger().Infof("auth_sync received: uid=%s name=%q", env.UID, env.DisplayName)
+			mask := func(s string) string {
+				if len(s) <= 6 {
+					return "***"
+				}
+				return s[:3] + "..." + s[len(s)-3:]
+			}
+			c.Logger().Infof("auth_sync received: uid=%s name=%q", mask(env.UID), mask(env.DisplayName))
 		} else {
 			c.Logger().Infof("auth_sync cleared")
 		}

@@ -8,7 +8,7 @@
 
 ## 0. 全体アーキテクチャ
 
-```
+```text
 [Apple Watch] ──► [Go daemon (~/.ddd)]
                        │
                        ├─► SQLite (ローカル)
@@ -112,11 +112,11 @@ func (s *Session) ShouldWriteBpm(now time.Time) bool // 前回から 2s 経過�
 
 ### A-5. `daemon/cmd/ddd/main.go` 修正
 ```go
-viper.SetDefault("FIREBASE_CREDENTIALS", "")
-viper.SetDefault("FIREBASE_PROJECT_ID", "")
+viper.SetDefault("DDD_FIREBASE_CREDENTIALS", "")
+viper.SetDefault("DDD_FIREBASE_PROJECT_ID", "")
 
-credPath := viper.GetString("FIREBASE_CREDENTIALS")
-projectID := viper.GetString("FIREBASE_PROJECT_ID")
+credPath := viper.GetString("DDD_FIREBASE_CREDENTIALS")
+projectID := viper.GetString("DDD_FIREBASE_PROJECT_ID")
 
 fs, err := store.OpenFirestore(ctx, credPath, projectID)
 if err != nil {
@@ -129,7 +129,7 @@ defer fs.Close() // nil レシーバ安全
 ```
 
 ### A-6. `.env.example`（daemon 用セクション追加）
-```
+```properties
 # Daemon -> Firestore (オプション)
 DDD_FIREBASE_CREDENTIALS=~/.ddd/firebase-credentials.json
 DDD_FIREBASE_PROJECT_ID=
