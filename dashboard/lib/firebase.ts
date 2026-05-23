@@ -1,12 +1,14 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
+import { getDatabase, type Database } from "firebase/database";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
 };
 
 /**
@@ -20,7 +22,8 @@ export const isFirebaseConfigured: boolean = Boolean(
   firebaseConfig.apiKey &&
     firebaseConfig.authDomain &&
     firebaseConfig.projectId &&
-    firebaseConfig.appId,
+    firebaseConfig.appId &&
+    firebaseConfig.databaseURL,
 );
 
 /**
@@ -51,3 +54,5 @@ export const auth: Auth | null = app ? getAuth(app) : null;
  * フォールバック取得経路として `useDaemon` / `useCommits` から使う。
  */
 export const db: Firestore | null = app ? getFirestore(app) : null;
+/** Firebase Realtime Database インスタンス。未設定時は null。 */
+export const db: Database | null = app ? getDatabase(app) : null;

@@ -7,6 +7,8 @@ import { CommitFeed } from "./components/CommitFeed";
 import { CommitChart } from "./components/CommitChart";
 import { PassionRanking } from "./components/PassionRanking";
 import { AuthButton } from "./components/AuthButton";
+import { useAuth } from "./auth/AuthProvider";
+import { LoginPromptBanner } from "./components/LoginPromptBanner";
 
 const STATUS_LABEL: Record<string, string> = {
   connected: "● LIVE",
@@ -26,6 +28,7 @@ const STATUS_COLOR: Record<string, string> = {
 export default function Home() {
   const { bpm, stale, status, commits } = useDaemon();
   const { commits: history, error: historyError } = useCommits(100);
+  const { user, configured } = useAuth();
 
   const accepted = commits.filter((c) => c.result === "accepted").length;
   const rejected = commits.filter((c) => c.result === "rejected").length;
@@ -43,6 +46,11 @@ export default function Home() {
           <span className="text-xs text-zinc-600 tracking-widest mt-1">DOKI DOKI DEVELOPMENT</span>
         </div>
         <div className="flex items-center gap-5">
+          {configured && user && (
+            <span className="text-[10px] font-mono tracking-widest text-emerald-500 border border-emerald-950 bg-emerald-950/20 px-2 py-0.5 rounded animate-pulse">
+              ☁ CLOUD SYNC
+            </span>
+          )}
           <span className={`text-xs font-mono font-semibold tracking-widest ${STATUS_COLOR[status]}`}>
             {STATUS_LABEL[status]}
           </span>
@@ -85,6 +93,11 @@ export default function Home() {
             <CommitFeed commits={commits} />
           </div>
         </aside>
+      </div>
+
+      {/* Login Prompt Banner */}
+      <div className="px-8 mb-2">
+        <LoginPromptBanner />
       </div>
 
       {/* History chart + Passion ranking */}
