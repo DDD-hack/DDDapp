@@ -8,6 +8,7 @@ import { CommitChart } from "./components/CommitChart";
 import { PassionRanking } from "./components/PassionRanking";
 import { AuthButton } from "./components/AuthButton";
 import { SuccessRateCard } from "./components/SuccessRateCard";
+import { MostPassionateCommit } from "./components/MostPassionateCommit";
 
 const STATUS_LABEL: Record<string, string> = {
   connected: "● LIVE",
@@ -87,6 +88,9 @@ export default function Home() {
 
       {/* Success rate */}
       {!historyError && <SuccessRateCard commits={history} />}
+
+      {/* Most passionate commit */}
+      {!historyError && <MostPassionateCommit commits={history} />}
 
       {/* History chart + Passion ranking */}
       {!historyError && (
