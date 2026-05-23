@@ -7,8 +7,9 @@ import { CommitFeed } from "./components/CommitFeed";
 import { CommitChart } from "./components/CommitChart";
 import { PassionRanking } from "./components/PassionRanking";
 import { AuthButton } from "./components/AuthButton";
-import { useAuth } from "./auth/AuthProvider";
 import { LoginPromptBanner } from "./components/LoginPromptBanner";
+import { LoginScreen } from "./components/LoginScreen";
+import { useAuth } from "./auth/AuthProvider";
 
 const STATUS_LABEL: Record<string, string> = {
   connected: "● LIVE",
@@ -25,7 +26,16 @@ const STATUS_COLOR: Record<string, string> = {
 export default function Home() {
   const { bpm, stale, status, commits } = useDaemon();
   const { commits: history, error: historyError } = useCommits(100);
-  const { user, configured } = useAuth();
+  const { user, loading, configured, isMember } = useAuth();
+
+  // 未ログイン → ログイン画面
+  if (!loading && configured && !user) {
+    return <LoginScreen />;
+  }
+  // ログイン済みだが未登録メンバー → エラー付きログイン画面
+  if (!loading && configured && user && !isMember) {
+    return <LoginScreen isUnauthorized email={user.email} />;
+  }
 
   const accepted = commits.filter((c) => c.result === "accepted").length;
   const rejected = commits.filter((c) => c.result === "rejected").length;

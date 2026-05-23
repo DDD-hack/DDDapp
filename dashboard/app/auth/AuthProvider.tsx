@@ -9,30 +9,29 @@ import {
 } from "react";
 import { FirebaseError } from "firebase/app";
 import {
+  GithubAuthProvider,
   GoogleAuthProvider,
   onAuthStateChanged,
   signInWithPopup,
   signOut as firebaseSignOut,
   type User,
 } from "firebase/auth";
-import { auth, isFirebaseConfigured } from "@/lib/firebase";
+import { ref, onValue, set } from "firebase/database";
+import { auth, db, isFirebaseConfigured } from "@/lib/firebase";
 
 type AuthContextValue = {
-  /** ログイン中のユーザー。未ログイン時は null。 */
   user: User | null;
-  /** 認証状態の初期確認が終わるまで true。 */
   loading: boolean;
-  /** Firebase 環境変数が設定済みでログイン機能が使えるか。 */
   configured: boolean;
-  /** Google アカウントでログインする。 */
+  /** /members/{uid} に登録されているか。DB未設定なら常に true。 */
+  isMember: boolean;
   signIn: () => Promise<void>;
-  /** ログアウトする。 */
+  signInWithGitHub: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-/** ユーザーが自分でポップアップを閉じた等、エラー扱いしないコード。 */
 const IGNORED_AUTH_CODES = new Set([
   "auth/popup-closed-by-user",
   "auth/cancelled-popup-request",
@@ -40,28 +39,63 @@ const IGNORED_AUTH_CODES = new Set([
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  // Firebase 未設定なら確認すべき認証状態が無いので初期から loading=false。
-  const [loading, setLoading] = useState(isFirebaseConfigured);
+  const [authLoading, setAuthLoading] = useState(isFirebaseConfigured);
+  const [isMember, setIsMember] = useState(!isFirebaseConfigured);
+  // Firebase設定済みの場合は最初から true にしてフラッシュを防ぐ
+  const [memberLoading, setMemberLoading] = useState(isFirebaseConfigured);
 
+  // 認証状態を監視
   useEffect(() => {
     if (!isFirebaseConfigured || !auth) return;
-
-    const unsubscribe = onAuthStateChanged(auth!, (nextUser) => {
+    return onAuthStateChanged(auth, (nextUser) => {
       setUser(nextUser);
-      setLoading(false);
+      setAuthLoading(false);
+      if (!nextUser) {
+        setIsMember(false);
+        setMemberLoading(false);
+      }
     });
-    return unsubscribe;
   }, []);
+
+  // ログイン後に /members/{uid} を監視し、未登録なら自動登録
+  useEffect(() => {
+    if (!db || !user) return;
+    const memberRef = ref(db, `members/${user.uid}`);
+
+    return onValue(memberRef, (snap) => {
+      if (!snap.exists()) {
+        // 初回ログイン時に自動登録
+        set(memberRef, {
+          name: user.displayName ?? user.email ?? "unknown",
+          email: user.email ?? "",
+          joinedAt: Date.now(),
+        }).catch(console.error);
+      }
+      setIsMember(snap.exists());
+      setMemberLoading(false);
+    });
+  }, [user]);
+
+  const loading = authLoading || memberLoading;
 
   async function signIn() {
     if (!isFirebaseConfigured || !auth) return;
     try {
-      await signInWithPopup(auth!, new GoogleAuthProvider());
+      await signInWithPopup(auth, new GoogleAuthProvider());
     } catch (err) {
-      if (err instanceof FirebaseError && IGNORED_AUTH_CODES.has(err.code)) {
-        return;
-      }
+      if (err instanceof FirebaseError && IGNORED_AUTH_CODES.has(err.code)) return;
       console.error("Google ログインに失敗しました:", err);
+      throw err;
+    }
+  }
+
+  async function signInWithGitHub() {
+    if (!isFirebaseConfigured || !auth) return;
+    try {
+      await signInWithPopup(auth, new GithubAuthProvider());
+    } catch (err) {
+      if (err instanceof FirebaseError && IGNORED_AUTH_CODES.has(err.code)) return;
+      console.error("GitHub ログインに失敗しました:", err);
       throw err;
     }
   }
@@ -69,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function signOut() {
     if (!isFirebaseConfigured || !auth) return;
     try {
-      await firebaseSignOut(auth!);
+      await firebaseSignOut(auth);
     } catch (err) {
       console.error("ログアウトに失敗しました:", err);
       throw err;
@@ -78,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, configured: isFirebaseConfigured, signIn, signOut }}
+      value={{ user, loading, configured: isFirebaseConfigured, isMember, signIn, signInWithGitHub, signOut }}
     >
       {children}
     </AuthContext.Provider>
