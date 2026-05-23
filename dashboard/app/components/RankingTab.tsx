@@ -146,7 +146,8 @@ export function RankingTab() {
 
   // 実データ or モック判定（Firebase接続済みでも commits が0件ならモックにフォールバック）
   const hasRealData = ranking.externalMembers.some((m) => m.commits > 0 || m.maxBpm > 0);
-  const isMock = !configured || !user || ranking.loading || ranking.error || !hasRealData;
+  const canUseRealtime = configured && !!user && !ranking.error;
+  const isMock = !canUseRealtime || (!ranking.loading && !hasRealData);
   const myUid = user?.uid ?? "a";
   const myTeamId = ranking.myTeamId ?? "DDD";
 

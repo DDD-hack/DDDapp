@@ -62,23 +62,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!rtdb || !user) return;
     const memberRef = ref(rtdb, `members/${user.uid}`);
 
-    return onValue(memberRef, (snap) => {
-      if (!snap.exists()) {
-        // 初回ログイン時に自動登録。楽観的に true にしてフリッカーを防ぐ
-        setIsMember(true);
-        set(memberRef, {
-          name: user.displayName ?? user.email ?? "unknown",
-          email: user.email ?? "",
-          joinedAt: Date.now(),
-        }).catch((err) => {
-          console.error("メンバー登録に失敗しました:", err);
-          setIsMember(false);
-        });
-      } else {
-        setIsMember(true);
-      }
-      setMemberLoading(false);
-    });
+    return onValue(
+      memberRef,
+      (snap) => {
+        if (!snap.exists()) {
+          // 初回ログイン時に自動登録。楽観的に true にしてフリッカーを防ぐ
+          setIsMember(true);
+          set(memberRef, {
+            name: user.displayName ?? user.email ?? "unknown",
+            email: user.email ?? "",
+            joinedAt: Date.now(),
+          }).catch((err) => {
+            console.error("メンバー登録に失敗しました:", err);
+            setIsMember(false);
+          });
+        } else {
+          setIsMember(true);
+        }
+        setMemberLoading(false);
+      },
+      (err) => {
+        console.error("メンバー情報の取得に失敗しました:", err);
+        setIsMember(false);
+        setMemberLoading(false);
+      },
+    );
   }, [user]);
 
   const loading = authLoading || memberLoading;

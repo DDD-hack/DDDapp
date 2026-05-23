@@ -1,78 +1,90 @@
-# Implementation Plan - Firebase Auth 認証設計およびダッシュボード表示方針
+# Implementation Plan - Firebase Firestore Sync [FB-3]
 
-本計画書は、DDD (Doki Doki Development) ダッシュボードにおける Firebase Auth ログイン機能の必要性の整理、および「ログイン制限（ログイン後にメイン画面を表示するか）」の設計オプションの比較検討と、それに基づく段階的な実装計画をまとめたものです。
+本計画書は、ローカルで動作する Go デーモンとクラウド（Vercel にデプロイされた Next.js ダッシュボード）の間で、心拍データ（BPM）およびコミットログを **Firebase Firestore 経由でバックグラウンド同期**するための実装計画です。
+
+これにより、ブラウザのセキュリティ制限（Mixed Content）を完全に回避し、Vercel 上でローカルの心拍数をセキュアかつリアルタイムに表示できるようになります。
+
+---
+
+## 全体アーキテクチャ・データフロー
+
+```text
+[Apple Watch (companion)]
+      │ (ローカルWiFi/Bluetooth)
+      ▼
+[ローカル Go デーモン (dddd)] ── (WebSocketでUID取得) ── [Next.js (ローカル環境)]
+      │
+      ├─► [Git Hook / VS Code 拡張] (ローカル超高速判定)
+      │
+      └─► [Firestore (Google Cloud)] (バックグラウンドクラウド同期)
+                │
+                ▼ (Firestore SDK - onSnapshot リアルタイム監視)
+          [Vercel ダッシュボード (https://xxx.vercel.app)]
+```
+
+### 同期メカニズムの鍵：
+1. **ユーザーID (UID) のデーモン連携**: 
+   ダッシュボード（ローカル環境）にログインした際、WebSocket を通じてデーモンに `{"type": "auth_sync", "uid": "xxxx", "displayName": "xxxx"}` のような認証情報を通知します。
+2. **デーモンからの直接クラウド送信**:
+   デーモンは通知された UID に紐づけて、Apple Watch からの心拍データや `git commit` 結果を直接 Firestore に書き込みます。
+3. **Vercel 上でのフォールバック取得**:
+   Vercel 上で動くダッシュボードは、ローカル WebSocket 接続が Mixed Content 等でブロックされた場合、自動的に **Firestore リアルタイム監視（onSnapshot）** パスへフォールバックし、クラウドからデータをリアルタイムに取得します。
+
+---
 
 ## User Review Required
 
 > [!IMPORTANT]
-> **ログイン機能の必要性に対する結論:**
-> ログイン機能は**今後実装予定のクラウド同期（Firestore 連携）やチーム間での共有・ソーシャル機能において必須**となります。
-> 一方で、ダッシュボードの閲覧そのものを「ログイン必須」にするか、「ログインなしでも使えるようにするか」については以下の2つのアプローチがあります。
-
-### 認証表示 of 設計オプション比較
-
-| 設計オプション | 概要 | メリット | デメリット |
-| :--- | :--- | :--- | :--- |
-| **オプションA: ハイブリッドモデル**<br>*(推奨)* | ログインしなくてもローカルモード（LOCAL MODE）として動作し、心拍数やローカルのコミットログはそのまま使用可能。Googleログインするとクラウド同期やグローバルランキングが解放される。 | ・**導入の障壁が極めて低い**<br>・Firebase未設定でも体験できる<br>・オフラインで動作可能 | ・ログイン状態によるUIの出し分け（クラウド機能の隠蔽）が必要になり、フロントエンドのロジックが少し増える |
-| **オプションB: ログイン必須モデル** | アプリ起動時にログイン画面（または全画面シールド）を表示し、Googleログインするまでダッシュボードを一切見せない。 | ・実装がシンプル（全データが必ずAuth Userに紐付く）<br>・セキュリティルールが書きやすい | ・Firebase初期設定が必要不可欠になり、**「試しに使ってみる」ことへのハードルが高くなる** |
-
----
-
-## 提案する方針：ハイブリッドモデル（オプションA）の強化
-
-DDDは、開発環境の障害時にもGitコミットを止めない「fail-openポリシー」など、開発の自律性や手軽さを尊重する設計思想を持っています。
-そのため、**「最初はローカルで手軽に動き、ログインするとクラウド同期によって履歴の永続化やグローバルランキングが解放される」** というハイブリッドモデルが最も体験が良いと考えます。
-
-### ログイン状態による画面表示の設計案
-
-1. **未ログイン / LOCAL MODE（ローカルのみ）**
-   - リアルタイムBPMゲージ：**表示（動作する）**
-   - ローカルコミットフィード：**表示（直近のログのみ）**
-   - コミット履歴チャート：**表示（ローカルデーモンから取得した過去ログ）**
-   - パッションランキング：**表示（ローカルにあるリポジトリのランキング）**
-   - *追加するUI*: チャートやランキングの付近に、「Googleログインすると、データを永続保存してチーム共有ランキングに参加できます」といったログイン誘導用のバナーを表示。
-2. **ログイン完了後（クラウド同期有効）**
-   - リアルタイムBPMゲージ：**表示**
-   - クラウド同期ステータス：**表示（「クラウド同期中」などのインジケータ）**
-   - コミット履歴チャート：**表示（Firestoreから永続取得した長期データ）**
-   - パッションランキング：**表示（チーム全体のオンラインランキングへの切り替えタブを解放）**
+> **Firebase サービスアカウント (Credentials) の導入について:**
+> ローカルの Go デーモンから Firestore に安全に書き込むため、**Firebase サービスアカウントの秘密鍵 JSON** が必要になります。
+> デーモンは、環境変数 `FIREBASE_CONFIG_PATH`（または `daemon/.env`）でこの JSON ファイルのパスを読み込み、Firestore への認証を行います。
+> *※この JSON ファイルは絶対に Git にコミットせず、`.gitignore` に追加します。*
 
 ---
 
 ## Proposed Changes
 
-ハイブリッドモデル（オプションA）に基づき、認証状態を考慮したダッシュボードUIの最適化と、今後のFirestore連携に向けた準備を進めるための計画です。
+### Component 1: Go Daemon (Firestore バックグラウンド同期の実装)
 
-### Component 1: Dashboard Frontend UI Adjustments
-ログイン状態に応じて表示するコンポーネントの制御や、ログインされていない場合の体験をリッチにする調整を行います。
+#### [MODIFY] `daemon/go.mod`
+- Firebase Go Admin SDK (`firebase.google.com/go/v4`) および Firestore クライアントの依存パッケージを追加します。
 
-#### [MODIFY] [page.tsx](file:///Users/kotaro/ddd/dashboard/app/page.tsx)
-- `useAuth` フックから `user` と `configured` 状態を取得。
-- ログインしていない場合に、グローバル連携機能（今後実装するグローバルランキングや永続同期など）が未解放であることを示す控えめなメッセージ/プレースホルダーを追加。
-- ログイン済みの場合に、ヘッダーにユーザー情報（Googleアバター等）をかっこよく表示し、接続ステータスに「CLOUD ACTIVE」などの誇らしいインジケータを添える。
+#### [NEW] `daemon/internal/store/firebase.go`
+- Firebase アプリの初期化と Firestore クライアントのシングルトン管理を行います。
+- サービスアカウント JSON ファイルが存在しない場合は、サイレントにローカル専用モードで動作を続行する（Fail-safe設計）。
 
-#### [NEW] [LoginPromptBanner.tsx](file:///Users/kotaro/ddd/dashboard/app/components/LoginPromptBanner.tsx)
-- 未ログインのユーザーに対し、情熱ランキングや履歴チャートの下部で「Googleログインしてクラウドと同期する」ことを促す、サイバーパンクデザインにマッチしたネオン調の小さなバナーコンポーネントを作成。
+#### [MODIFY] `daemon/internal/api/handler.go`
+- WebSocket 接続時、クライアント（ダッシュボード）からの `auth_sync` メッセージを受信し、現在アクティブなユーザーID (`uid`) をメモリに保持・更新するハンドラを追加します。
+- 心拍データ（BPM）受信時、アクティブな `uid` が存在すれば、Firestore 上の `users/{uid}` ドキュメントを更新する非同期ゴルーチンを走らせます。
+- コミット結果受信時、`users/{uid}/commits/{commitId}` にコミット履歴ドキュメントを追加します。
 
 ---
 
-### Component 2: Firestore Sync Preparation (`[FB-3]` への布石)
-Firebase AuthでログインしたユーザーのUIDを今後デーモンやFirestoreでどのように識別・格納するかのデータスキーマ設計を定義しておきます。
+### Component 2: Dashboard Frontend (Vercel フォールバック表示の実装)
 
-#### [NEW] [schema.md](file:///Users/kotaro/ddd/docs/schema.md)
-- `users/{uid}`: ユーザープロフィール（表示名、アバター、現在の閾値など）
-- `users/{uid}/commits/{commitId}`: ユーザー個別のコミット履歴データ
-- `global_rankings/{repoName}`: 共有用のリポジトリ別パッションデータ（匿名化またはユーザー表示名付きで集計）
+#### [MODIFY] `dashboard/app/hooks/useDaemon.ts`
+- WebSocket の接続試行が Mixed Content エラーや接続エラーで `disconnected` になった場合、またはデプロイ環境である場合、**Firestore リアルタイム監視リスナー (`onSnapshot`)** を起動します。
+- ログイン中のユーザーの Firestore パス `users/{uid}` を常時監視し、心拍数（BPM）やステータスを WebSocket 接続時と全く同じ `DaemonState` インターフェースで UI に提供します。
+
+#### [MODIFY] `dashboard/app/hooks/useCommits.ts`
+- 直近コミット履歴の取得において、ローカルデーモンからの API フェッチが失敗した場合、Firestore コレクション `users/{uid}/commits` からクエリ（日付順で降順ソート、制限件数）を行ってコミットリストを取得するようにします。
+
+#### [MODIFY] `dashboard/app/auth/AuthProvider.tsx`
+- ダッシュボードがローカル開発環境（`localhost:3000`）で動作しており、かつログインに成功した際、接続中のローカル WebSocket に対して `auth_sync` メッセージを自動送信する処理を追加します。
 
 ---
 
 ## Verification Plan
 
 ### Automated Tests
-- `bun run lint` でESLintエラーが発生しないこと。
-- `tsc --noEmit` でTypeScript型チェックが完全に通ること。
+- `go test ./...` にて、Firestore 書き込み処理が正常にバイパス（サービスアカウント未設定時）または実行されることをテスト。
+- `bun run lint` および `tsc --noEmit` で TypeScript のコンパイルが通ることを確認。
 
 ### Manual Verification
-- **Firebase未設定時**: ヘッダーに `LOCAL MODE` が表示され、画面崩れなくローカルダッシュボードが動くこと。
-- **Firebase設定済み・未ログイン**: ヘッダーに `Google でログイン` ボタンとログイン促しバナーが表示されること。
-- **ログイン完了時**: アバターと表示名が表示され、バナーが消えてログイン済み状態の表示にスムーズに切り替わること。
+1. **ローカル環境での動作**:
+   - ダッシュボード（localhost）で Google ログインする。
+   - Go デーモン側に `Received auth_sync: uid=...` とログが出力されることを確認。
+2. **Vercel 上での動作**:
+   - ダッシュボードを Vercel にデプロイし、Google ログインする。
+   - ローカルの Apple Watch アプリで心拍数を更新する。
+   - Vercel ダッシュボードが、ローカルへの直接通信なしで（Firestore 経由で）リアルタイムに心拍ゲージやコミットログを更新できることを確認。
