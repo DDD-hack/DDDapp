@@ -24,6 +24,7 @@ func main() {
 	viper.SetDefault("FIREBASE_PROJECT_ID", "")
 	viper.SetDefault("FIREBASE_DATABASE_URL", "")
 	viper.SetDefault("DDD_THRESHOLD_BPM", 120)
+	viper.SetDefault("DISCORD_WEBHOOK_URL", "")
 
 	port := viper.GetString("DDD_DAEMON_PORT")
 
@@ -72,6 +73,7 @@ func main() {
 
 	buf := hrm.NewBuffer()
 	h := api.NewHandler(buf, db, fs, rtdb, api.NewSession())
+	h.SetDiscordWebhookURL(viper.GetString("DISCORD_WEBHOOK_URL"))
 
 	e := echo.New()
 	e.Use(middleware.Logger())
