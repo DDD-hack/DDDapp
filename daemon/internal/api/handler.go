@@ -3,15 +3,18 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/kotaro/ddd/daemon/internal/discord"
 	"github.com/kotaro/ddd/daemon/internal/hrm"
 	"github.com/kotaro/ddd/daemon/internal/store"
 	"github.com/labstack/echo/v4"
@@ -77,6 +80,9 @@ type Handler struct {
 	rtdb    *store.RTDBClient      // nil 可: RTDB 未設定時
 	session *Session
 
+	discordWebhookURL string // 空文字なら通知しない
+	thresholdBPM      int    // コミット許可の閾値（デフォルト 120）
+
 	mu          sync.Mutex
 	vscodeConns []*websocket.Conn
 }
@@ -86,13 +92,28 @@ func NewHandler(buf *hrm.Buffer, db *store.Store, fs *store.FirestoreClient, rtd
 		session = NewSession()
 	}
 	return &Handler{
-		buf:         buf,
-		db:          db,
-		fs:          fs,
-		rtdb:        rtdb,
-		session:     session,
-		vscodeConns: make([]*websocket.Conn, 0),
+		buf:          buf,
+		db:           db,
+		fs:           fs,
+		rtdb:         rtdb,
+		session:      session,
+		thresholdBPM: 120,
+		vscodeConns:  make([]*websocket.Conn, 0),
 	}
+}
+
+// SetDiscordWebhookURL configures the Discord webhook URL for commit notifications.
+// An empty string disables notifications.
+func (h *Handler) SetDiscordWebhookURL(u string) { h.discordWebhookURL = u }
+
+// SetThresholdBPM sets the BPM threshold used for notification labels.
+// Must match DDD_THRESHOLD_BPM to keep labels consistent with commit acceptance.
+// Falls back to 120 if t <= 0.
+func (h *Handler) SetThresholdBPM(t int) {
+	if t <= 0 {
+		t = 120
+	}
+	h.thresholdBPM = t
 }
 
 // Session returns the active dashboard session (uid / displayName holder).
@@ -208,18 +229,31 @@ func (h *Handler) PostCommit(c echo.Context) error {
 		"bpm":    req.BPM,
 	})
 
+	uid, displayName, hasSession := h.session.Current()
+	parent := c.Request().Context()
+
 	// RTDB へのバックグラウンド書き込み（uid 既知のときのみ）。
 	// /commits/{uid} 配下に push-id 付きでコミット結果を追記する。
-	if h.rtdb != nil {
-		if uid, _, ok := h.session.Current(); ok {
-			go func(uid, repoPath, hash, result string, bpm int) {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-				if err := h.rtdb.AddCommit(ctx, uid, repoPath, hash, bpm, result); err != nil {
-					log.Printf("rtdb: add commit: %v", err)
-				}
-			}(uid, req.RepoPath, req.CommitHash, req.Result, req.BPM)
-		}
+	if h.rtdb != nil && hasSession {
+		go func(parent context.Context, uid, repoPath, hash, result string, bpm int) {
+			ctx, cancel := context.WithTimeout(parent, 5*time.Second)
+			defer cancel()
+			if err := h.rtdb.AddCommit(ctx, uid, repoPath, hash, bpm, result); err != nil {
+				log.Printf("rtdb: add commit: %v", err)
+			}
+		}(parent, uid, req.RepoPath, req.CommitHash, req.Result, req.BPM)
+	}
+
+	// Discord 通知（webhook 未設定なら no-op）。
+	if h.discordWebhookURL != "" {
+		threshold := h.thresholdBPM
+		go func() {
+			ctx, cancel := context.WithTimeout(parent, 5*time.Second)
+			defer cancel()
+			if err := discord.Send(ctx, h.discordWebhookURL, commitPayload(displayName, req.RepoPath, req.CommitHash, req.Result, req.BPM, threshold)); err != nil {
+				log.Printf("discord: %v", err)
+			}
+		}()
 	}
 
 	return c.JSON(http.StatusCreated, map[string]string{"status": "ok"})
@@ -356,6 +390,53 @@ func (h *Handler) GetHeartRateHistory(c echo.Context) error {
 		rows = []store.HeartRateSample{}
 	}
 	return c.JSON(http.StatusOK, rows)
+}
+
+// commitPayload builds a Discord embed for a commit result.
+func commitPayload(displayName, repoPath, commitHash, result string, bpm, threshold int) discord.Payload {
+	color := 0x2ECC71 // green
+	title := "✅ COMMIT ACCEPTED"
+	if result != "accepted" {
+		color = 0xE74C3C // red
+		title = "💀 COMMIT REJECTED"
+	}
+
+	name := displayName
+	if name == "" {
+		name = "unknown"
+	}
+	repo := filepath.Base(repoPath)
+	hash := commitHash
+	if len(hash) > 7 {
+		hash = hash[:7]
+	}
+	if hash == "" {
+		hash = "—"
+	}
+
+	bpmLabel := fmt.Sprintf("%d bpm", bpm)
+	switch {
+	case bpm > 150:
+		bpmLabel += " 🔥"
+	case bpm >= threshold:
+		bpmLabel += " 💪"
+	default:
+		bpmLabel += " 😰"
+	}
+
+	return discord.Payload{
+		Embeds: []discord.Embed{{
+			Title: title,
+			Color: color,
+			Fields: []discord.Field{
+				{Name: "Developer", Value: name, Inline: true},
+				{Name: "BPM", Value: bpmLabel, Inline: true},
+				{Name: "Repo", Value: repo, Inline: true},
+				{Name: "Hash", Value: "`" + hash + "`", Inline: true},
+			},
+			Footer: &discord.Footer{Text: "DOKI DOKI DEVELOPMENT"},
+		}},
+	}
 }
 
 // GetCurrent returns the current average BPM for the git hook.
