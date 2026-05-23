@@ -17,7 +17,7 @@ import {
   type User,
 } from "firebase/auth";
 import { ref, onValue, set } from "firebase/database";
-import { auth, db, isFirebaseConfigured } from "@/lib/firebase";
+import { auth, rtdb, isFirebaseConfigured } from "@/lib/firebase";
 
 type AuthContextValue = {
   user: User | null;
@@ -59,8 +59,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ログイン後に /members/{uid} を監視し、未登録なら自動登録
   useEffect(() => {
-    if (!db || !user) return;
-    const memberRef = ref(db, `members/${user.uid}`);
+    if (!rtdb || !user) return;
+    const memberRef = ref(rtdb, `members/${user.uid}`);
 
     return onValue(memberRef, (snap) => {
       if (!snap.exists()) {

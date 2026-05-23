@@ -12,7 +12,6 @@ import { MostPassionateCommit } from "./components/MostPassionateCommit";
 import { useAuth } from "./auth/AuthProvider";
 import { LoginPromptBanner } from "./components/LoginPromptBanner";
 import { LoginScreen } from "./components/LoginScreen";
-import { useAuth } from "./auth/AuthProvider";
 
 const STATUS_LABEL: Record<string, string> = {
   connected: "● LIVE",
