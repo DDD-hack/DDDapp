@@ -1,9 +1,9 @@
 {
   "rules": {
     "members": {
-      ".read": "auth != null",
+      ".read": "auth != null && root.child('members').child(auth.uid).exists()",
       "$uid": {
-        ".write": "auth != null && auth.uid === $uid"
+        ".write": "auth != null && auth.uid === $uid && root.child('members').child($uid).exists()"
       }
     },
     "heartbeat": {
