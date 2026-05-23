@@ -1,17 +1,49 @@
 {
+  // VS Code 拡張(vscode-ext/)のデバッグ起動設定
+  //
+  // 使い方: リポジトリルート(ddd/)を VS Code で開き、Run and Debug ビュー
+  //   (Cmd+Shift+D)から構成を選んで F5。
+  //   "Run VS Code Extension"   : 通常のデバッグ。既存プロファイルが乗る
+  //   "(clean profile)"         : 他拡張を全 OFF + 新規プロファイル(Vim 等の競合切り分け)
+  //   "Attach to Extension Host": 既に走っている拡張ホストに後付けアタッチ
+  //
+  // 詳細: docs/vscode-ext-debugging.md
   "version": "0.2.0",
   "configurations": [
     {
       "name": "Run VS Code Extension",
       "type": "extensionHost",
       "request": "launch",
+      "runtimeExecutable": "${execPath}",
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}/vscode-ext"],
+      "outFiles": ["${workspaceFolder}/vscode-ext/dist/**/*.js"],
+      "sourceMaps": true,
+      "smartStep": true,
+      "preLaunchTask": "compile-extension",
+      "internalConsoleOptions": "openOnSessionStart"
+    },
+    {
+      "name": "Run VS Code Extension (clean profile)",
+      "type": "extensionHost",
+      "request": "launch",
+      "runtimeExecutable": "${execPath}",
       "args": [
-        "--extensionDevelopmentPath=${workspaceFolder}/vscode-ext"
+        "--extensionDevelopmentPath=${workspaceFolder}/vscode-ext",
+        "--disable-extensions",
+        "--profile-temp"
       ],
-      "outFiles": [
-        "${workspaceFolder}/vscode-ext/dist/**/*.js"
-      ],
-      "preLaunchTask": "npm: compile"
+      "outFiles": ["${workspaceFolder}/vscode-ext/dist/**/*.js"],
+      "sourceMaps": true,
+      "smartStep": true,
+      "preLaunchTask": "compile-extension"
+    },
+    {
+      "name": "Attach to Extension Host",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "sourceMaps": true,
+      "outFiles": ["${workspaceFolder}/vscode-ext/dist/**/*.js"]
     }
   ]
 }

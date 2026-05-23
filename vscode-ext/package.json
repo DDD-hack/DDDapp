@@ -128,7 +128,8 @@
     ]
   },
   "scripts": {
-    "compile": "bun build src/extension.ts --outdir dist --target node --external vscode",
+    "compile": "bun build src/extension.ts --outdir dist --target node --external vscode --sourcemap=external",
+    "watch": "bun build src/extension.ts --outdir dist --target node --external vscode --sourcemap=external --watch",
     "lint": "tsc --noEmit",
     "package": "vsce package"
   },
