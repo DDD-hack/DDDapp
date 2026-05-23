@@ -40,8 +40,13 @@ export function SuccessRateCard({ commits, mode = "both" }: Props) {
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
+  const tomorrowStart = new Date(todayStart);
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
   const todayCommits = commits.filter(
-    (c) => new Date(c.attempted_at) >= todayStart
+    (c) => {
+      const t = new Date(c.attempted_at);
+      return t >= todayStart && t < tomorrowStart;
+    }
   );
   const todayTotal = todayCommits.length;
   const todayAccepted = todayCommits.filter((c) => c.result === "accepted").length;
