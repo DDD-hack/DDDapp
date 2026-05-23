@@ -108,7 +108,13 @@ func (h *Handler) SetDiscordWebhookURL(u string) { h.discordWebhookURL = u }
 
 // SetThresholdBPM sets the BPM threshold used for notification labels.
 // Must match DDD_THRESHOLD_BPM to keep labels consistent with commit acceptance.
-func (h *Handler) SetThresholdBPM(t int) { h.thresholdBPM = t }
+// Falls back to 120 if t <= 0.
+func (h *Handler) SetThresholdBPM(t int) {
+	if t <= 0 {
+		t = 120
+	}
+	h.thresholdBPM = t
+}
 
 // Session returns the active dashboard session (uid / displayName holder).
 // 起動時の broadcast goroutine から参照したいので exported にしている。
