@@ -7,6 +7,7 @@ import { CommitFeed } from "./components/CommitFeed";
 import { CommitChart } from "./components/CommitChart";
 import { PassionRanking } from "./components/PassionRanking";
 import { AuthButton } from "./components/AuthButton";
+import { SuccessRateCard } from "./components/SuccessRateCard";
 
 const STATUS_LABEL: Record<string, string> = {
   connected: "● LIVE",
@@ -83,6 +84,9 @@ export default function Home() {
           </div>
         </aside>
       </div>
+
+      {/* Success rate */}
+      {!historyError && <SuccessRateCard commits={history} />}
 
       {/* History chart + Passion ranking */}
       {!historyError && (
