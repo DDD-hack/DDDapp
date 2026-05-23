@@ -48,9 +48,84 @@
           "type": "boolean",
           "default": true,
           "description": "REJECTED 時に編集中ファイルへ「ダメージコメント」を 3 秒だけ挿入する（クリーンなドキュメントのみ対象）"
+        },
+        "ddd.lockdown.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Lockdown Mode を拡張起動時に自動で有効化する（推奨: 手動で start するか、慣れてから true）"
+        },
+        "ddd.lockdown.threshold": {
+          "type": "number",
+          "default": 120,
+          "minimum": 60,
+          "maximum": 220,
+          "description": "Lockdown を解除する BPM 閾値。BPM がこの値以上のときだけタイピングできる"
+        },
+        "ddd.lockdown.intensity": {
+          "type": "string",
+          "enum": ["soft", "standard", "intense"],
+          "default": "standard",
+          "description": "soft = ステータスバーのみ / standard = トースト + ステータスバー / intense = カーソル行振動も追加"
+        },
+        "ddd.lockdown.graceCharacters": {
+          "type": "number",
+          "default": 5,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "BPM が閾値を超えた直後に与えられる入力猶予文字数。タイポ訂正用"
+        },
+        "ddd.lockdown.filePatterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["**/*.{ts,tsx,js,jsx,go,py,rs,java,c,cpp,h,swift}"],
+          "description": "Lockdown 対象のファイル glob パターン。Markdown 等は対象外にして書ける"
+        },
+        "ddd.lockdown.blockPaste": {
+          "type": "boolean",
+          "default": true,
+          "description": "ロック中の貼り付け (paste / drag-drop) を遮断する"
+        },
+        "ddd.lockdown.readonlyDefense": {
+          "type": "boolean",
+          "default": false,
+          "description": "[実験的] ロック中にエディタを Read-Only Session に切替える追加防御"
+        },
+        "ddd.lockdown.skipIfVimDetected": {
+          "type": "boolean",
+          "default": true,
+          "description": "Vim 系拡張が有効な場合は Lockdown を自動で無効化する (type コマンド競合回避)"
         }
       }
-    }
+    },
+    "commands": [
+      {
+        "command": "ddd.lockdown.toggle",
+        "title": "DDD: Lockdown Mode を切替",
+        "category": "DDD"
+      },
+      {
+        "command": "ddd.lockdown.start",
+        "title": "DDD: Lockdown Mode を開始",
+        "category": "DDD"
+      },
+      {
+        "command": "ddd.lockdown.stop",
+        "title": "DDD: Lockdown Mode を解除",
+        "category": "DDD"
+      },
+      {
+        "command": "ddd.lockdown.forceUnlock",
+        "title": "DDD: 🚨 Lockdown を強制解除（緊急）",
+        "category": "DDD"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "ddd.lockdown.forceUnlock",
+        "key": "ctrl+alt+escape",
+        "mac": "cmd+alt+escape"
+      }
+    ]
   },
   "scripts": {
     "compile": "bun build src/extension.ts --outdir dist --target node --external vscode",
