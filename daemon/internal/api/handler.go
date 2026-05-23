@@ -73,14 +73,15 @@ var upgrader = websocket.Upgrader{
 type Handler struct {
 	buf     *hrm.Buffer
 	db      *store.Store
-	fs      *store.FirestoreClient // nil 可: Firestore 未設定時
+	fs      *store.FirestoreClient // nil 可: Firestore 未設定時（現状は未使用、将来用に残置）
+	rtdb    *store.RTDBClient      // nil 可: RTDB 未設定時
 	session *Session
 
 	mu          sync.Mutex
 	vscodeConns []*websocket.Conn
 }
 
-func NewHandler(buf *hrm.Buffer, db *store.Store, fs *store.FirestoreClient, session *Session) *Handler {
+func NewHandler(buf *hrm.Buffer, db *store.Store, fs *store.FirestoreClient, rtdb *store.RTDBClient, session *Session) *Handler {
 	if session == nil {
 		session = NewSession()
 	}
@@ -88,6 +89,7 @@ func NewHandler(buf *hrm.Buffer, db *store.Store, fs *store.FirestoreClient, ses
 		buf:         buf,
 		db:          db,
 		fs:          fs,
+		rtdb:        rtdb,
 		session:     session,
 		vscodeConns: make([]*websocket.Conn, 0),
 	}
@@ -102,6 +104,32 @@ func (h *Handler) Session() *Session {
 // FirestoreClient returns the active Firestore client (may be nil).
 func (h *Handler) FirestoreClient() *store.FirestoreClient {
 	return h.fs
+}
+
+// RTDBClient returns the active Realtime Database client (may be nil).
+func (h *Handler) RTDBClient() *store.RTDBClient {
+	return h.rtdb
+}
+
+// WriteCurrentBpmToRTDB は 1Hz の broadcast ループから呼ばれる想定で、
+// users/{uid}/current_bpm を RTDB に書き込む。uid 未設定や RTDB nil なら no-op。
+// 呼び出し側を絶対にブロックしないため goroutine で投げる。
+func (h *Handler) WriteCurrentBpmToRTDB(bpm int) {
+	if h.rtdb == nil {
+		return
+	}
+	uid, _, ok := h.session.Current()
+	if !ok {
+		return
+	}
+	go func(uid string, bpm int) {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := h.rtdb.SetCurrentBpm(ctx, uid, bpm); err != nil {
+			// fail-open: ローカル機能は動き続けるので warn だけ
+			log.Printf("rtdb: set current_bpm: %v", err)
+		}
+	}(uid, bpm)
 }
 
 // WS handles WebSocket connections from the iPhone app.
@@ -141,33 +169,12 @@ func (h *Handler) WS(c echo.Context) error {
 			c.Logger().Warnf("ws: save sample: %v", err)
 		}
 
-		// Firestore へのバックグラウンド書き込み（uid 既知 & スロットル許容時のみ）
-		h.maybeWriteBpmToFirestore(payload.BPM)
+		// 注意: BPM の RTDB 書き込みはここでは行わない。
+		// main.go の 1Hz broadcast ループが Buffer.Average() を取って
+		// h.WriteCurrentBpmToRTDB() を呼ぶことで、Apple Watch の送信レートに
+		// 依存せず常に 1Hz で /users/{uid}/current_bpm を更新する。
 	}
 	return nil
-}
-
-// maybeWriteBpmToFirestore は uid が設定済みかつスロットル間隔を満たすときだけ
-// goroutine で Firestore に書き込む。ローカル機能をブロックしない。
-func (h *Handler) maybeWriteBpmToFirestore(bpm int) {
-	if h.fs == nil {
-		return
-	}
-	uid, name, ok := h.session.Current()
-	if !ok {
-		return
-	}
-	if !h.session.MarkBpmWrite(time.Now()) {
-		return
-	}
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := h.fs.UpsertUserBpm(ctx, uid, name, bpm); err != nil {
-			// fail-open: ローカルは動き続けるので warn だけ
-			log.Printf("firestore: upsert bpm: %v", err)
-		}
-	}()
 }
 
 // PostCommit records a commit attempt (accepted or rejected) from the git hook.
@@ -201,14 +208,15 @@ func (h *Handler) PostCommit(c echo.Context) error {
 		"bpm":    req.BPM,
 	})
 
-	// Firestore へのバックグラウンド書き込み（uid 既知のときのみ、スロットルなし）
-	if h.fs != nil {
+	// RTDB へのバックグラウンド書き込み（uid 既知のときのみ）。
+	// /commits/{uid} 配下に push-id 付きでコミット結果を追記する。
+	if h.rtdb != nil {
 		if uid, _, ok := h.session.Current(); ok {
 			go func(uid, repoPath, hash, result string, bpm int) {
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
-				if err := h.fs.AddUserCommit(ctx, uid, repoPath, hash, bpm, result); err != nil {
-					log.Printf("firestore: add commit: %v", err)
+				if err := h.rtdb.AddCommit(ctx, uid, repoPath, hash, bpm, result); err != nil {
+					log.Printf("rtdb: add commit: %v", err)
 				}
 			}(uid, req.RepoPath, req.CommitHash, req.Result, req.BPM)
 		}
