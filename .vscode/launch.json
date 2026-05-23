@@ -15,7 +15,10 @@
       "type": "extensionHost",
       "request": "launch",
       "runtimeExecutable": "${execPath}",
-      "args": ["--extensionDevelopmentPath=${workspaceFolder}/vscode-ext"],
+      "args": [
+        "${workspaceFolder}",
+        "--extensionDevelopmentPath=${workspaceFolder}/vscode-ext"
+      ],
       "outFiles": ["${workspaceFolder}/vscode-ext/dist/**/*.js"],
       "sourceMaps": true,
       "smartStep": true,
@@ -28,6 +31,7 @@
       "request": "launch",
       "runtimeExecutable": "${execPath}",
       "args": [
+        "${workspaceFolder}",
         "--extensionDevelopmentPath=${workspaceFolder}/vscode-ext",
         "--disable-extensions",
         "--profile-temp"
