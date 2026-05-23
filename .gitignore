@@ -79,3 +79,4 @@ companion/.swiftpm/
 Thumbs.db
 .idea/
 # .vscode/  <- tracked for shared extension settings
+untitled.pen
