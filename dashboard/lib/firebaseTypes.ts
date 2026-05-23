@@ -5,6 +5,7 @@ export type Member = {
   name: string;
   email: string;
   joinedAt: number; // Unix ms
+  teamId?: string;  // チーム識別子（Firebaseコンソールで設定）
 };
 
 /**
@@ -44,6 +45,28 @@ export type HeatmapDay = {
   accepted: number;
   rejected: number;
   maxBpm: number;
+};
+
+// ---- ランキング集計型 ----
+
+export type MemberRankEntry = {
+  uid: string;
+  name: string;
+  teamId: string;
+  teamName: string;
+  commits: number;
+  maxBpm: number;
+  avgBpm: number;
+  passion: number; // avgBpm × √commits
+};
+
+export type TeamRankEntry = {
+  teamId: string;
+  teamName: string;
+  memberCount: number;
+  maxBpm: number;
+  avgBpm: number;
+  passion: number; // チーム平均BPM × √チーム総コミット数
 };
 
 /**

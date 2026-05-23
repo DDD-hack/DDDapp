@@ -15,6 +15,7 @@ import { ContributionHeatmap } from "./components/ContributionHeatmap";
 import { useAuth } from "./auth/AuthProvider";
 import { LoginPromptBanner } from "./components/LoginPromptBanner";
 import { LoginScreen } from "./components/LoginScreen";
+import { RankingTab } from "./components/RankingTab";
 
 const STATUS_LABEL: Record<string, string> = {
   connected: "● LIVE",
@@ -34,7 +35,7 @@ const STATUS_COLOR: Record<string, string> = {
 export default function Home() {
   const { bpm, stale, status, commits } = useDaemon();
   const { commits: history, error: historyError } = useCommits(100);
-  const [activeTab, setActiveTab] = useState<"today" | "cumulative">("today");
+  const [activeTab, setActiveTab] = useState<"today" | "cumulative" | "ranking">("today");
   const { user, loading, configured, isMember } = useAuth();
 
   // 認証確認中はローディング画面を表示（ダッシュボードへのフォールスルーを防ぐ）
@@ -105,6 +106,16 @@ export default function Home() {
             }`}
           >
             累積
+          </button>
+          <button
+            onClick={() => setActiveTab("ranking")}
+            className={`px-4 py-3 text-[10px] font-bold tracking-widest transition-colors border-b-2 ${
+              activeTab === "ranking"
+                ? "border-red-500 text-white"
+                : "border-transparent text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            ランキング
           </button>
         </div>
       </div>
@@ -195,6 +206,9 @@ export default function Home() {
           {!historyError && <ContributionHeatmap commits={history} />}
         </>
       )}
+
+      {/* Body: Ranking Tab */}
+      {activeTab === "ranking" && <RankingTab />}
 
       <div className="flex-1" />
 

@@ -78,6 +78,7 @@ export function useFirebaseHeartbeat(): MemberHeartbeat[] {
       unsubMembers();
       hbUnsubs.forEach((u) => u());
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid]);
 
   // membersOwnerUid が現在の user と一致するときだけ返す
