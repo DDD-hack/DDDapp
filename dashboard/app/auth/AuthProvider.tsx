@@ -70,7 +70,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           name: user.displayName ?? user.email ?? "unknown",
           email: user.email ?? "",
           joinedAt: Date.now(),
-        }).catch(console.error);
+        }).catch((err) => {
+          console.error("メンバー登録に失敗しました:", err);
+          setIsMember(false);
+        });
       } else {
         setIsMember(true);
       }
