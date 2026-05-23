@@ -1,10 +1,12 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { CommitRecord } from "../hooks/useCommits";
 
 type Props = {
   commits: CommitRecord[];
   mode?: "both" | "today" | "cumulative";
+  children?: ReactNode;
 };
 
 const GAUGE_FRACTION = 260 / 360;
@@ -30,7 +32,7 @@ function getTitle(rate: number, total: number): string | null {
   return "要ダッシュ";
 }
 
-export function SuccessRateCard({ commits, mode = "both" }: Props) {
+export function SuccessRateCard({ commits, mode = "both", children }: Props) {
   const total = commits.length;
   const accepted = commits.filter((c) => c.result === "accepted").length;
   const rate = total > 0 ? accepted / total : 0;
@@ -126,13 +128,14 @@ export function SuccessRateCard({ commits, mode = "both" }: Props) {
 
         {/* TODAY'S BEST */}
         {(mode === "both" || mode === "today") && (
-          <div className="flex flex-col gap-2 w-full max-w-xs">
+          <div className="flex flex-col gap-3 flex-1">
             <p className="text-[10px] font-semibold tracking-widest text-zinc-600">
               {"TODAY'S BEST"}
             </p>
-            <div className="flex gap-3">
-              <div className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-4">
-                <p className="text-[10px] text-zinc-600 tracking-widest mb-1">
+            <div className="grid grid-cols-1 sm:grid-cols-[2fr_2fr_6fr] gap-4 items-start">
+              {/* 成功率 */}
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-6 py-5">
+                <p className="text-[10px] text-zinc-600 tracking-widest mb-2">
                   成功率
                 </p>
                 <p
@@ -145,23 +148,27 @@ export function SuccessRateCard({ commits, mode = "both" }: Props) {
                   {todayRate !== null ? `${todayRate}%` : "--"}
                 </p>
                 {todayTotal > 0 && (
-                  <p className="text-xs text-zinc-600 mt-1">
+                  <p className="text-xs text-zinc-600 mt-2">
                     {todayAccepted} / {todayTotal} 回
                   </p>
                 )}
               </div>
 
-              <div className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-4">
-                <p className="text-[10px] text-zinc-600 tracking-widest mb-1">
+              {/* 最高BPM */}
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-6 py-5">
+                <p className="text-[10px] text-zinc-600 tracking-widest mb-2">
                   最高BPM
                 </p>
                 <p className="text-4xl font-black tabular-nums text-red-400">
                   {todayMaxBpm !== null ? todayMaxBpm : "--"}
                 </p>
                 {todayMaxBpm !== null && (
-                  <p className="text-xs text-zinc-600 mt-1">bpm</p>
+                  <p className="text-xs text-zinc-600 mt-2">bpm</p>
                 )}
               </div>
+
+              {/* MEMBER HEARTBEATS */}
+              {children}
             </div>
           </div>
         )}
