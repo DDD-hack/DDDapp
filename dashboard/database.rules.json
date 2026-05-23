@@ -1,0 +1,40 @@
+{
+  "rules": {
+    "members": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "heartbeat": {
+      ".read": "auth != null && root.child('members').child(auth.uid).exists()",
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "users": {
+      ".read": "auth != null && root.child('members').child(auth.uid).exists()",
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "commits": {
+      ".read": "auth != null && root.child('members').child(auth.uid).exists()",
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "stats": {
+      ".read": "auth != null && root.child('members').child(auth.uid).exists()",
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "heatmap": {
+      ".read": "auth != null && root.child('members').child(auth.uid).exists()",
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    }
+  }
+}
