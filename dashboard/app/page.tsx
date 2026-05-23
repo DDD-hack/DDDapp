@@ -14,12 +14,15 @@ const STATUS_LABEL: Record<string, string> = {
   connected: "● LIVE",
   connecting: "○ 接続中",
   disconnected: "○ 切断",
+  cloud: "☁ CLOUD",
 };
 
 const STATUS_COLOR: Record<string, string> = {
   connected: "text-green-500",
   connecting: "text-yellow-500",
   disconnected: "text-zinc-500",
+  // クラウドフォールバック中は LIVE と区別するため空色を使う
+  cloud: "text-sky-400",
 };
 
 export default function Home() {

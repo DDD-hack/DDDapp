@@ -1,11 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { doc, onSnapshot, type Unsubscribe } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useAuth } from "../auth/AuthProvider";
 
 const DAEMON_WS = process.env.NEXT_PUBLIC_DAEMON_WS_URL || "ws://localhost:8765/ws/vscode";
 const RECONNECT_DELAY = 5000;
+/** WS が切れてから Firestore フォールバックへ切り替えるまでの待ち時間。 */
+const FALLBACK_DELAY = 3000;
+/** Firestore 経由で読んだ bpmUpdatedAt がこれ以上古ければ stale とみなす。 */
+const CLOUD_STALE_MS = 10000;
 
-export type ConnectionStatus = "connecting" | "connected" | "disconnected";
+export type ConnectionStatus = "connecting" | "connected" | "disconnected" | "cloud";
 
 export type CommitEvent = {
   id: number;
@@ -21,15 +28,81 @@ export type DaemonState = {
   commits: CommitEvent[];
 };
 
+type AuthLike = { uid: string; displayName: string | null } | null;
+
+function sendAuthSync(ws: WebSocket | null, u: AuthLike) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  try {
+    ws.send(
+      JSON.stringify({
+        type: "auth_sync",
+        uid: u?.uid ?? "",
+        displayName: u?.displayName ?? "",
+      }),
+    );
+  } catch {
+    // 接続が落ち際の send 失敗は無視（次の connect で再送される）
+  }
+}
+
 export function useDaemon(): DaemonState {
   const [bpm, setBpm] = useState<number | null>(null);
   const [stale, setStale] = useState(false);
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [commits, setCommits] = useState<CommitEvent[]>([]);
+
+  const { user } = useAuth();
+  // WS の各種コールバック（接続後の open ハンドラなど）から「最新の user」を
+  // 参照したいので ref に逃がす。ref の更新は別 effect で行い、render 中の
+  // ref 書き換えを避ける。
+  const userRef = useRef<AuthLike>(user);
+
   const commitIdRef = useRef(0);
   const wsRef = useRef<WebSocket | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const unsubFirestoreRef = useRef<Unsubscribe | null>(null);
   const unmountedRef = useRef(false);
+
+  // Firestore フォールバックの開始/停止 ----------------------------------------
+
+  function stopFirestoreFallback() {
+    if (unsubFirestoreRef.current) {
+      unsubFirestoreRef.current();
+      unsubFirestoreRef.current = null;
+    }
+  }
+
+  function startFirestoreFallback(uid: string) {
+    if (unsubFirestoreRef.current || !db) return;
+    setStatus("cloud");
+    const ref = doc(db, "users", uid);
+    unsubFirestoreRef.current = onSnapshot(
+      ref,
+      (snap) => {
+        const data = snap.data();
+        if (!data) {
+          setBpm(null);
+          setStale(true);
+          return;
+        }
+        const cloudBpm = typeof data.currentBpm === "number" ? data.currentBpm : null;
+        const updatedAt =
+          data.bpmUpdatedAt && typeof data.bpmUpdatedAt.toDate === "function"
+            ? (data.bpmUpdatedAt.toDate() as Date)
+            : null;
+        const ageMs = updatedAt ? Date.now() - updatedAt.getTime() : Infinity;
+        const isStale = cloudBpm == null || ageMs > CLOUD_STALE_MS;
+        setStale(isStale);
+        setBpm(isStale ? null : cloudBpm);
+      },
+      (err) => {
+        console.error("firestore onSnapshot:", err);
+      },
+    );
+  }
+
+  // WebSocket 接続 -----------------------------------------------------------
 
   useEffect(() => {
     unmountedRef.current = false;
@@ -42,8 +115,18 @@ export function useDaemon(): DaemonState {
       wsRef.current = ws;
 
       ws.addEventListener("open", () => {
-        if (unmountedRef.current) return ws.close();
+        if (unmountedRef.current) {
+          ws.close();
+          return;
+        }
+        // WS が復活したらフォールバック関係を全部止めて WS 経路に戻す
+        if (fallbackTimerRef.current) {
+          clearTimeout(fallbackTimerRef.current);
+          fallbackTimerRef.current = null;
+        }
+        stopFirestoreFallback();
         setStatus("connected");
+        sendAuthSync(ws, userRef.current);
       });
 
       ws.addEventListener("message", (e) => {
@@ -77,7 +160,18 @@ export function useDaemon(): DaemonState {
         if (unmountedRef.current) return;
         setStatus("disconnected");
         setBpm(null);
-        timerRef.current = setTimeout(connect, RECONNECT_DELAY);
+        reconnectTimerRef.current = setTimeout(connect, RECONNECT_DELAY);
+
+        // 切断が FALLBACK_DELAY 続いたら、ログイン中ユーザー & Firestore 設定済みなら
+        // クラウド経由のリアルタイム購読へフォールバック
+        if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+        fallbackTimerRef.current = setTimeout(() => {
+          fallbackTimerRef.current = null;
+          const u = userRef.current;
+          if (u && db) {
+            startFirestoreFallback(u.uid);
+          }
+        }, FALLBACK_DELAY);
       });
 
       ws.addEventListener("error", () => {
@@ -89,10 +183,41 @@ export function useDaemon(): DaemonState {
 
     return () => {
       unmountedRef.current = true;
-      if (timerRef.current) clearTimeout(timerRef.current);
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+      stopFirestoreFallback();
       wsRef.current?.close();
     };
+    // 接続は一度だけ確立する。ユーザー変更は別 effect で auth_sync 経由で反映する。
   }, []);
+
+  // ユーザー変更時の追従 -----------------------------------------------------
+  //   - 最新 user を ref に反映（WS コールバックから参照される）
+  //   - WS が open ならその場で auth_sync を再送
+  //   - Firestore フォールバック中なら購読先 uid を切替（user が null なら停止）
+  // user 不在時の bpm リセットは setState in effect を避けるためここでは行わない。
+  // フォールバック停止後は、次の onSnapshot / WS メッセージ受信時に値が更新される。
+  useEffect(() => {
+    userRef.current = user;
+    sendAuthSync(wsRef.current, user);
+    
+    // Clear displayed state asynchronously to avoid set-state-in-effect warning
+    setTimeout(() => {
+      if (unmountedRef.current) return;
+      setBpm(null);
+      setStale(false);
+      if (!user) {
+        setStatus("disconnected");
+      }
+    }, 0);
+
+    if (unsubFirestoreRef.current) {
+      stopFirestoreFallback();
+      if (user && db) {
+        startFirestoreFallback(user.uid);
+      }
+    }
+  }, [user]);
 
   return { bpm, stale, status, commits };
 }
