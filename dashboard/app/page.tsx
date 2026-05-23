@@ -7,6 +7,9 @@ import { CommitFeed } from "./components/CommitFeed";
 import { CommitChart } from "./components/CommitChart";
 import { PassionRanking } from "./components/PassionRanking";
 import { AuthButton } from "./components/AuthButton";
+import { SuccessRateCard } from "./components/SuccessRateCard";
+import { MostPassionateCommit } from "./components/MostPassionateCommit";
+import { useAuth } from "./auth/AuthProvider";
 import { LoginPromptBanner } from "./components/LoginPromptBanner";
 import { LoginScreen } from "./components/LoginScreen";
 import { useAuth } from "./auth/AuthProvider";
@@ -15,12 +18,15 @@ const STATUS_LABEL: Record<string, string> = {
   connected: "● LIVE",
   connecting: "○ 接続中",
   disconnected: "○ 切断",
+  cloud: "☁ CLOUD",
 };
 
 const STATUS_COLOR: Record<string, string> = {
   connected: "text-green-500",
   connecting: "text-yellow-500",
   disconnected: "text-zinc-500",
+  // クラウドフォールバック中は LIVE と区別するため空色を使う
+  cloud: "text-sky-400",
 };
 
 export default function Home() {
@@ -115,6 +121,12 @@ export default function Home() {
       <div className="px-8 mb-2">
         <LoginPromptBanner />
       </div>
+
+      {/* Success rate */}
+      {!historyError && <SuccessRateCard commits={history} />}
+
+      {/* Most passionate commit */}
+      {!historyError && <MostPassionateCommit commits={history} />}
 
       {/* History chart + Passion ranking */}
       {!historyError && (
