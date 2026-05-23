@@ -60,6 +60,9 @@ companion/.swiftpm/
 .env.local
 .env.*.local
 **/google-services.json
+**/firebase-credentials*.json
+**/firebase-adminsdk-*.json
+**/service-account*.json
 **/*.pem
 **/*.p8
 **/*.p12

@@ -11,23 +11,48 @@ import { AuthButton } from "./components/AuthButton";
 import { SuccessRateCard } from "./components/SuccessRateCard";
 import { MostPassionateCommit } from "./components/MostPassionateCommit";
 import { ContributionHeatmap } from "./components/ContributionHeatmap";
+import { useAuth } from "./auth/AuthProvider";
+import { LoginPromptBanner } from "./components/LoginPromptBanner";
+import { LoginScreen } from "./components/LoginScreen";
 
 const STATUS_LABEL: Record<string, string> = {
   connected: "● LIVE",
   connecting: "○ 接続中",
   disconnected: "○ 切断",
+  cloud: "☁ CLOUD",
 };
 
 const STATUS_COLOR: Record<string, string> = {
   connected: "text-green-500",
   connecting: "text-yellow-500",
   disconnected: "text-zinc-500",
+  // クラウドフォールバック中は LIVE と区別するため空色を使う
+  cloud: "text-sky-400",
 };
 
 export default function Home() {
   const { bpm, stale, status, commits } = useDaemon();
   const { commits: history, error: historyError } = useCommits(100);
   const [activeTab, setActiveTab] = useState<"today" | "cumulative">("today");
+  const { user, loading, configured, isMember } = useAuth();
+
+  // 認証確認中はローディング画面を表示（ダッシュボードへのフォールスルーを防ぐ）
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-black text-white flex items-center justify-center">
+        <p className="text-xs tracking-widest text-zinc-600 animate-pulse">認証状態を確認中...</p>
+      </main>
+    );
+  }
+
+  // 未ログイン → ログイン画面
+  if (configured && !user) {
+    return <LoginScreen />;
+  }
+  // ログイン済みだが未登録メンバー → エラー付きログイン画面
+  if (configured && user && !isMember) {
+    return <LoginScreen isUnauthorized email={user.email} />;
+  }
 
   const accepted = commits.filter((c) => c.result === "accepted").length;
   const rejected = commits.filter((c) => c.result === "rejected").length;
@@ -45,6 +70,11 @@ export default function Home() {
           <span className="text-xs text-zinc-600 tracking-widest mt-1">DOKI DOKI DEVELOPMENT</span>
         </div>
         <div className="flex items-center gap-5">
+          {configured && user && (
+            <span className="text-[10px] font-mono tracking-widest text-emerald-500 border border-emerald-950 bg-emerald-950/20 px-2 py-0.5 rounded animate-pulse">
+              ☁ CLOUD SYNC
+            </span>
+          )}
           <span className={`text-xs font-mono font-semibold tracking-widest ${STATUS_COLOR[status]}`}>
             {STATUS_LABEL[status]}
           </span>
@@ -115,6 +145,11 @@ export default function Home() {
                 <CommitFeed commits={commits} />
               </div>
             </aside>
+          </div>
+
+          {/* Login Prompt Banner */}
+          <div className="px-8 mb-2">
+            <LoginPromptBanner />
           </div>
 
           {/* Success rate - Today's Best only */}
