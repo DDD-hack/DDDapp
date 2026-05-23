@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useDaemon } from "./hooks/useDaemon";
 import { useCommits } from "./hooks/useCommits";
 import { BpmGauge } from "./components/BpmGauge";
@@ -9,6 +10,7 @@ import { PassionRanking } from "./components/PassionRanking";
 import { AuthButton } from "./components/AuthButton";
 import { SuccessRateCard } from "./components/SuccessRateCard";
 import { MostPassionateCommit } from "./components/MostPassionateCommit";
+import { ContributionHeatmap } from "./components/ContributionHeatmap";
 
 const STATUS_LABEL: Record<string, string> = {
   connected: "● LIVE",
@@ -25,6 +27,7 @@ const STATUS_COLOR: Record<string, string> = {
 export default function Home() {
   const { bpm, stale, status, commits } = useDaemon();
   const { commits: history, error: historyError } = useCommits(100);
+  const [activeTab, setActiveTab] = useState<"today" | "cumulative">("today");
 
   const accepted = commits.filter((c) => c.result === "accepted").length;
   const rejected = commits.filter((c) => c.result === "rejected").length;
@@ -49,66 +52,113 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Body */}
-      <div className="flex flex-1 flex-col lg:flex-row">
-        {/* Left: BPM gauge */}
-        <section className="flex flex-1 items-center justify-center py-16 px-8">
-          <BpmGauge bpm={bpm} stale={stale} />
-        </section>
-
-        {/* Right: commit feed + stats */}
-        <aside className="lg:w-80 border-t lg:border-t-0 lg:border-l border-zinc-900 flex flex-col">
-          {/* Stats bar */}
-          {commits.length > 0 && (
-            <div className="flex divide-x divide-zinc-900 border-b border-zinc-900">
-              <div className="flex-1 px-4 py-3 text-center">
-                <div className="text-2xl font-black text-red-500">{accepted}</div>
-                <div className="text-[10px] text-zinc-600 tracking-widest">ACCEPTED</div>
-              </div>
-              <div className="flex-1 px-4 py-3 text-center">
-                <div className="text-2xl font-black text-zinc-500">{rejected}</div>
-                <div className="text-[10px] text-zinc-600 tracking-widest">REJECTED</div>
-              </div>
-              <div className="flex-1 px-4 py-3 text-center">
-                <div className="text-2xl font-black text-zinc-300">{avgBpm ?? "--"}</div>
-                <div className="text-[10px] text-zinc-600 tracking-widest">AVG BPM</div>
-              </div>
-            </div>
-          )}
-
-          {/* Feed */}
-          <div className="flex-1 overflow-y-auto p-4">
-            <h2 className="text-[10px] font-semibold tracking-widest text-zinc-600 mb-3">
-              COMMIT LOG
-            </h2>
-            <CommitFeed commits={commits} />
-          </div>
-        </aside>
+      {/* Tab Switcher */}
+      <div className="flex justify-center border-b border-zinc-900 bg-zinc-950 px-8 py-0">
+        <div className="flex gap-8">
+          <button
+            onClick={() => setActiveTab("today")}
+            className={`px-4 py-3 text-[10px] font-bold tracking-widest transition-colors border-b-2 ${
+              activeTab === "today"
+                ? "border-red-500 text-white"
+                : "border-transparent text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            今日
+          </button>
+          <button
+            onClick={() => setActiveTab("cumulative")}
+            className={`px-4 py-3 text-[10px] font-bold tracking-widest transition-colors border-b-2 ${
+              activeTab === "cumulative"
+                ? "border-red-500 text-white"
+                : "border-transparent text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            累積
+          </button>
+        </div>
       </div>
 
-      {/* Success rate */}
-      {!historyError && <SuccessRateCard commits={history} />}
+      {/* Body: Today Tab */}
+      {activeTab === "today" && (
+        <>
+          <div className="flex flex-col lg:flex-row">
+            {/* Left: BPM gauge */}
+            <section className="flex flex-1 items-center justify-center py-16 px-8">
+              <BpmGauge bpm={bpm} stale={stale} />
+            </section>
 
-      {/* Most passionate commit */}
-      {!historyError && <MostPassionateCommit commits={history} />}
+            {/* Right: commit feed + stats */}
+            <aside className="lg:w-80 border-t lg:border-t-0 lg:border-l border-zinc-900 flex flex-col min-h-[400px]">
+              {/* Stats bar */}
+              {commits.length > 0 && (
+                <div className="flex divide-x divide-zinc-900 border-b border-zinc-900">
+                  <div className="flex-1 px-4 py-3 text-center">
+                    <div className="text-2xl font-black text-red-500">{accepted}</div>
+                    <div className="text-[10px] text-zinc-600 tracking-widest">ACCEPTED</div>
+                  </div>
+                  <div className="flex-1 px-4 py-3 text-center">
+                    <div className="text-2xl font-black text-zinc-500">{rejected}</div>
+                    <div className="text-[10px] text-zinc-600 tracking-widest">REJECTED</div>
+                  </div>
+                  <div className="flex-1 px-4 py-3 text-center">
+                    <div className="text-2xl font-black text-zinc-300">{avgBpm ?? "--"}</div>
+                    <div className="text-[10px] text-zinc-600 tracking-widest">AVG BPM</div>
+                  </div>
+                </div>
+              )}
 
-      {/* History chart + Passion ranking */}
-      {!historyError && (
-        <section className="border-t border-zinc-900 px-8 py-6 flex flex-col xl:flex-row gap-8">
-          <div className="flex-1 min-w-0">
-            <h2 className="text-[10px] font-semibold tracking-widest text-zinc-600 mb-4">
-              COMMIT HISTORY
-            </h2>
-            <CommitChart commits={history} />
+              {/* Feed */}
+              <div className="flex-1 overflow-y-auto p-4">
+                <h2 className="text-[10px] font-semibold tracking-widest text-zinc-600 mb-3">
+                  COMMIT LOG
+                </h2>
+                <CommitFeed commits={commits} />
+              </div>
+            </aside>
           </div>
-          <div className="xl:w-96">
-            <h2 className="text-[10px] font-semibold tracking-widest text-zinc-600 mb-4">
-              PASSION RANKING
-            </h2>
-            <PassionRanking commits={history} />
-          </div>
-        </section>
+
+          {/* Success rate - Today's Best only */}
+          {!historyError && <SuccessRateCard commits={history} mode="today" />}
+
+          {/* History chart */}
+          {!historyError && (
+            <section className="border-t border-zinc-900 px-8 py-6">
+              <div className="max-w-4xl">
+                <h2 className="text-[10px] font-semibold tracking-widest text-zinc-600 mb-4">
+                  COMMIT HISTORY
+                </h2>
+                <CommitChart commits={history} />
+              </div>
+            </section>
+          )}
+        </>
       )}
+
+      {/* Body: Cumulative Tab */}
+      {activeTab === "cumulative" && (
+        <>
+          {/* Most passionate commit */}
+          {!historyError && <MostPassionateCommit commits={history} />}
+
+          {/* Success rate - All Time Gauge only */}
+          {!historyError && <SuccessRateCard commits={history} mode="cumulative" />}
+
+          {/* Passion ranking */}
+          {!historyError && (
+            <section className="border-t border-zinc-900 px-8 py-6">
+              <h2 className="text-[10px] font-semibold tracking-widest text-zinc-600 mb-4">
+                PASSION RANKING
+              </h2>
+              <PassionRanking commits={history} />
+            </section>
+          )}
+
+          {/* Contribution Heatmap */}
+          {!historyError && <ContributionHeatmap commits={history} />}
+        </>
+      )}
+
+      <div className="flex-1" />
 
       {/* Footer */}
       <footer className="px-8 py-3 border-t border-zinc-900 text-center text-xs text-zinc-700 tracking-widest">
