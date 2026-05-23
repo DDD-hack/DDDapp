@@ -1,18 +1,24 @@
 "use client";
 
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ReferenceLine,
+  Cell,
+} from "recharts";
 import type { CommitRecord } from "../hooks/useCommits";
 
-const CHART_HEIGHT = 200;
-const Y_MIN = 60;
-const Y_MAX = 180;
-const Y_RANGE = Y_MAX - Y_MIN;
-const MAX_BARS = 20;
-const Y_LABELS = [180, 150, 120, 90, 60];
+const THRESHOLD = 120;
 
 type ChartPoint = {
   time: string;
   bpm: number;
   result: "accepted" | "rejected";
+  repo: string;
 };
 
 function formatTime(iso: string): string {
@@ -20,12 +26,29 @@ function formatTime(iso: string): string {
   return d.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
 }
 
-function barHeightPx(bpm: number): number {
-  return Math.min(Math.max(((bpm - Y_MIN) / Y_RANGE) * CHART_HEIGHT, 4), CHART_HEIGHT);
-}
+type TooltipPayload = {
+  payload: ChartPoint;
+};
 
-function avgBottomPx(avg: number): number {
-  return Math.min(Math.max(((avg - Y_MIN) / Y_RANGE) * CHART_HEIGHT, 0), CHART_HEIGHT);
+function CustomTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: TooltipPayload[];
+}) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm">
+      <p className={`font-bold ${d.result === "accepted" ? "text-red-400" : "text-zinc-400"}`}>
+        {d.result === "accepted" ? "🔥 ACCEPTED" : "💔 REJECTED"}
+      </p>
+      <p className="text-white font-mono">{d.bpm} bpm</p>
+      <p className="text-zinc-500 text-xs mt-1">{d.time}</p>
+      <p className="text-zinc-600 text-xs truncate max-w-[180px]">{d.repo.split("/").pop()}</p>
+    </div>
+  );
 }
 
 type Props = {
@@ -33,7 +56,15 @@ type Props = {
 };
 
 export function CommitChart({ commits }: Props) {
-  if (commits.length === 0) {
+  // API returns newest-first; reverse to show oldest→newest left to right
+  const data: ChartPoint[] = [...commits].reverse().map((c) => ({
+    time: formatTime(c.attempted_at),
+    bpm: c.bpm,
+    result: c.result,
+    repo: c.repo_path,
+  }));
+
+  if (data.length === 0) {
     return (
       <div className="flex items-center justify-center h-40 text-zinc-600 text-sm">
         コミット履歴なし
@@ -46,218 +77,49 @@ export function CommitChart({ commits }: Props) {
   const maxBpm = Math.max(...commits.map((c) => c.bpm));
   const avgBpm = Math.round(commits.reduce((s, c) => s + c.bpm, 0) / commits.length);
 
-  // Newest commits first → slice → reverse to oldest-left / newest-right
-  const display: ChartPoint[] = [...commits]
-    .slice(0, MAX_BARS)
-    .reverse()
-    .map((c) => ({
-      time: formatTime(c.attempted_at),
-      bpm: c.bpm,
-      result: c.result,
-    }));
-
   return (
     <div className="flex flex-col gap-4">
-      {/* Stats cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard value={accepted} label="accepted" color="#10B981" />
-        <StatCard value={rejected} label="rejected" color="#EF4444" />
-        <StatCard value={avgBpm} label="avg bpm" color="#FFFFFF" />
-        <StatCard value={maxBpm} label="max bpm" color="#F97316" />
+      {/* Mini stats */}
+      <div className="flex gap-6 text-sm">
+        <span><span className="text-red-400 font-bold">{accepted}</span> <span className="text-zinc-500">accepted</span></span>
+        <span><span className="text-zinc-500 font-bold">{rejected}</span> <span className="text-zinc-600">rejected</span></span>
+        <span><span className="text-zinc-300 font-bold">{avgBpm}</span> <span className="text-zinc-600">avg bpm</span></span>
+        <span><span className="text-orange-400 font-bold">{maxBpm}</span> <span className="text-zinc-600">max bpm</span></span>
       </div>
 
-      {/* Chart card */}
-      <div
-        className="rounded-2xl border flex flex-col gap-4"
-        style={{
-          background: "#1A1A2E",
-          borderColor: "rgba(255,255,255,0.06)",
-          boxShadow: "0 4px 24px rgba(0,0,0,0.25)",
-          padding: "24px 24px 20px",
-        }}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold" style={{ color: "#E5E7EB" }}>
-            BPM Timeline
-          </span>
-          <span className="text-[11px]" style={{ color: "#6B7280" }}>
-            Last {display.length} commits
-          </span>
-        </div>
-
-        {/* Chart body: Y-axis + bars */}
-        <div className="flex items-end gap-3">
-          {/* Y-axis labels */}
-          <div
-            className="flex flex-col justify-between shrink-0 pb-[26px]"
-            style={{ height: CHART_HEIGHT + 26 }}
-          >
-            {Y_LABELS.map((v) => (
-              <span
-                key={v}
-                className="leading-none tabular-nums"
-                style={{ fontSize: 11, color: "#4B5563" }}
-              >
-                {v}
-              </span>
-            ))}
-          </div>
-
-          {/* Bar area + BPM labels + time labels */}
-          <div className="flex-1 flex flex-col min-w-0">
-            {/* Bar area */}
-            <div
-              className="relative flex items-end gap-1.5"
-              style={{ height: CHART_HEIGHT }}
-            >
-              {/* Avg BPM dashed line */}
-              <div
-                className="absolute left-0 right-0 pointer-events-none"
-                style={{
-                  bottom: avgBottomPx(avgBpm),
-                  borderTop: "1px dashed #F59E0B",
-                  opacity: 0.7,
-                }}
+      {/* Chart */}
+      <ResponsiveContainer width="100%" height={200}>
+        <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
+          <XAxis
+            dataKey="time"
+            tick={{ fill: "#52525b", fontSize: 11 }}
+            axisLine={false}
+            tickLine={false}
+            interval="preserveStartEnd"
+          />
+          <YAxis
+            domain={[40, (max: number) => Math.max(max + 10, THRESHOLD + 20)]}
+            tick={{ fill: "#52525b", fontSize: 11 }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+          <ReferenceLine
+            y={THRESHOLD}
+            stroke="#71717a"
+            strokeDasharray="4 4"
+            label={{ value: `${THRESHOLD}`, fill: "#71717a", fontSize: 11, position: "right" }}
+          />
+          <Bar dataKey="bpm" radius={[3, 3, 0, 0]} maxBarSize={32}>
+            {data.map((entry, i) => (
+              <Cell
+                key={i}
+                fill={entry.result === "accepted" ? "#ef4444" : "#3f3f46"}
               />
-
-              {display.map((d, i) => (
-                <div
-                  key={i}
-                  className="flex-1 h-full flex items-end"
-                  title={`${d.bpm} bpm · ${d.result}`}
-                >
-                  <div
-                    style={{
-                      width: "100%",
-                      height: barHeightPx(d.bpm),
-                      background:
-                        d.result === "accepted"
-                          ? "linear-gradient(to bottom, #EF4444, #F97316)"
-                          : "linear-gradient(to bottom, #374151, #4B5563)",
-                      borderRadius: "8px 8px 2px 2px",
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-
-            {/* BPM labels */}
-            <div className="flex gap-1.5 pt-1.5">
-              {display.map((d, i) => (
-                <span
-                  key={i}
-                  className="flex-1 text-center leading-none font-semibold tabular-nums"
-                  style={{
-                    fontSize: 10,
-                    color: d.result === "accepted" ? "#F97316" : "#6B7280",
-                  }}
-                >
-                  {d.bpm}
-                </span>
-              ))}
-            </div>
-
-            {/* Time labels */}
-            <div className="flex gap-1.5 pt-1">
-              {display.map((d, i) => (
-                <span
-                  key={i}
-                  className="flex-1 text-center leading-none"
-                  style={{ fontSize: 10, color: "#4B5563" }}
-                >
-                  {d.time}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Separator */}
-        <div style={{ height: 1, background: "rgba(255,255,255,0.05)" }} />
-
-        {/* Legend */}
-        <div className="flex items-center gap-6">
-          <LegendSquare
-            gradient="linear-gradient(to right, #EF4444, #F97316)"
-            label="Accepted"
-          />
-          <LegendSquare
-            gradient="linear-gradient(to right, #374151, #4B5563)"
-            label="Rejected"
-          />
-          <LegendLine label={`Avg BPM (${avgBpm})`} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StatCard({
-  value,
-  label,
-  color,
-}: {
-  value: number;
-  label: string;
-  color: string;
-}) {
-  return (
-    <div
-      className="flex flex-col gap-1 rounded-xl border"
-      style={{
-        background: "#1A1A2E",
-        borderColor: "rgba(255,255,255,0.06)",
-        padding: "16px 20px",
-      }}
-    >
-      <span
-        className="text-3xl font-bold tabular-nums leading-none"
-        style={{ color }}
-      >
-        {value}
-      </span>
-      <span className="text-xs font-medium" style={{ color: "#6B7280" }}>
-        {label}
-      </span>
-    </div>
-  );
-}
-
-function LegendSquare({ gradient, label }: { gradient: string; label: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <div
-        style={{
-          width: 10,
-          height: 10,
-          borderRadius: 3,
-          background: gradient,
-          flexShrink: 0,
-        }}
-      />
-      <span className="text-xs font-medium" style={{ color: "#9CA3AF" }}>
-        {label}
-      </span>
-    </div>
-  );
-}
-
-function LegendLine({ label }: { label: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <div
-        style={{
-          width: 20,
-          height: 2,
-          background: "#F59E0B",
-          borderRadius: 1,
-          flexShrink: 0,
-        }}
-      />
-      <span className="text-xs font-medium" style={{ color: "#9CA3AF" }}>
-        {label}
-      </span>
+            ))}
+          </Bar>
+        </ComposedChart>
+      </ResponsiveContainer>
     </div>
   );
 }
