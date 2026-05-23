@@ -1,7 +1,9 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -69,19 +71,37 @@ var upgrader = websocket.Upgrader{
 }
 
 type Handler struct {
-	buf *hrm.Buffer
-	db  *store.Store
+	buf     *hrm.Buffer
+	db      *store.Store
+	fs      *store.FirestoreClient // nil 可: Firestore 未設定時
+	session *Session
 
 	mu          sync.Mutex
 	vscodeConns []*websocket.Conn
 }
 
-func NewHandler(buf *hrm.Buffer, db *store.Store) *Handler {
+func NewHandler(buf *hrm.Buffer, db *store.Store, fs *store.FirestoreClient, session *Session) *Handler {
+	if session == nil {
+		session = NewSession()
+	}
 	return &Handler{
 		buf:         buf,
 		db:          db,
+		fs:          fs,
+		session:     session,
 		vscodeConns: make([]*websocket.Conn, 0),
 	}
+}
+
+// Session returns the active dashboard session (uid / displayName holder).
+// 起動時の broadcast goroutine から参照したいので exported にしている。
+func (h *Handler) Session() *Session {
+	return h.session
+}
+
+// FirestoreClient returns the active Firestore client (may be nil).
+func (h *Handler) FirestoreClient() *store.FirestoreClient {
+	return h.fs
 }
 
 // WS handles WebSocket connections from the iPhone app.
@@ -120,8 +140,34 @@ func (h *Handler) WS(c echo.Context) error {
 		if err := h.db.SaveSample(ctx, payload.BPM, "apple_watch"); err != nil {
 			c.Logger().Warnf("ws: save sample: %v", err)
 		}
+
+		// Firestore へのバックグラウンド書き込み（uid 既知 & スロットル許容時のみ）
+		h.maybeWriteBpmToFirestore(payload.BPM)
 	}
 	return nil
+}
+
+// maybeWriteBpmToFirestore は uid が設定済みかつスロットル間隔を満たすときだけ
+// goroutine で Firestore に書き込む。ローカル機能をブロックしない。
+func (h *Handler) maybeWriteBpmToFirestore(bpm int) {
+	if h.fs == nil {
+		return
+	}
+	uid, name, ok := h.session.Current()
+	if !ok {
+		return
+	}
+	if !h.session.MarkBpmWrite(time.Now()) {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := h.fs.UpsertUserBpm(ctx, uid, name, bpm); err != nil {
+			// fail-open: ローカルは動き続けるので warn だけ
+			log.Printf("firestore: upsert bpm: %v", err)
+		}
+	}()
 }
 
 // PostCommit records a commit attempt (accepted or rejected) from the git hook.
@@ -155,10 +201,30 @@ func (h *Handler) PostCommit(c echo.Context) error {
 		"bpm":    req.BPM,
 	})
 
+	// Firestore へのバックグラウンド書き込み（uid 既知のときのみ、スロットルなし）
+	if h.fs != nil {
+		if uid, _, ok := h.session.Current(); ok {
+			go func(uid, repoPath, hash, result string, bpm int) {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				if err := h.fs.AddUserCommit(ctx, uid, repoPath, hash, bpm, result); err != nil {
+					log.Printf("firestore: add commit: %v", err)
+				}
+			}(uid, req.RepoPath, req.CommitHash, req.Result, req.BPM)
+		}
+	}
+
 	return c.JSON(http.StatusCreated, map[string]string{"status": "ok"})
 }
 
-// VscodeWS handles WebSocket connections from the VS Code extension.
+// VscodeWS handles WebSocket connections from the dashboard / VS Code extension.
+//
+// 受信メッセージ:
+//
+//	{"type":"auth_sync","uid":"<firebase-uid>","displayName":"<name>"}
+//	  -> 現在アクティブな uid を session に記録する。空 uid は Clear と等価。
+//
+// それ以外のメッセージは無視する。
 func (h *Handler) VscodeWS(c echo.Context) error {
 	conn, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
 	if err != nil {
@@ -182,11 +248,35 @@ func (h *Handler) VscodeWS(c echo.Context) error {
 	}()
 
 	for {
-		if _, _, err := conn.ReadMessage(); err != nil {
+		_, message, err := conn.ReadMessage()
+		if err != nil {
 			break
 		}
+		h.handleVscodeMessage(c, message)
 	}
 	return nil
+}
+
+// handleVscodeMessage は dashboard / VS Code 拡張からの JSON メッセージを処理する。
+// 解析エラーや未知の type は単にスキップ（fail-open）。
+func (h *Handler) handleVscodeMessage(c echo.Context, message []byte) {
+	var env struct {
+		Type        string `json:"type"`
+		UID         string `json:"uid"`
+		DisplayName string `json:"displayName"`
+	}
+	if err := json.Unmarshal(message, &env); err != nil {
+		return
+	}
+	switch env.Type {
+	case "auth_sync":
+		h.session.SetAuth(env.UID, env.DisplayName)
+		if env.UID != "" {
+			c.Logger().Infof("auth_sync received: uid=%s name=%q", env.UID, env.DisplayName)
+		} else {
+			c.Logger().Infof("auth_sync cleared")
+		}
+	}
 }
 
 // BroadcastVscode sends a JSON message to all connected VS Code extensions.

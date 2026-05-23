@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"strings"
@@ -19,6 +20,8 @@ func main() {
 	viper.AutomaticEnv()
 	viper.SetDefault("DAEMON_PORT", "8765")
 	viper.SetDefault("ALLOWED_ORIGINS", "")
+	viper.SetDefault("FIREBASE_CREDENTIALS", "")
+	viper.SetDefault("FIREBASE_PROJECT_ID", "")
 
 	port := viper.GetString("DAEMON_PORT")
 
@@ -32,8 +35,27 @@ func main() {
 		}
 	}()
 
+	// Firestore は fail-safe: credentials 未設定なら nil で動作（ローカルのみ）。
+	fs, err := store.OpenFirestore(context.Background(),
+		viper.GetString("FIREBASE_CREDENTIALS"),
+		viper.GetString("FIREBASE_PROJECT_ID"),
+	)
+	if err != nil {
+		log.Printf("firestore disabled: %v", err)
+	}
+	if fs == nil {
+		log.Print("firestore: disabled (no credentials configured)")
+	} else {
+		log.Print("firestore: ready")
+	}
+	defer func() {
+		if err := fs.Close(); err != nil {
+			log.Printf("firestore close: %v", err)
+		}
+	}()
+
 	buf := hrm.NewBuffer()
-	h := api.NewHandler(buf, db)
+	h := api.NewHandler(buf, db, fs, api.NewSession())
 
 	e := echo.New()
 	e.Use(middleware.Logger())

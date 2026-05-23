@@ -22,7 +22,7 @@ func newTestHandler(t *testing.T) *Handler {
 		t.Fatalf("store.OpenAt: %v", err)
 	}
 	t.Cleanup(func() { _ = s.Close() })
-	return NewHandler(hrm.NewBuffer(), s)
+	return NewHandler(hrm.NewBuffer(), s, nil, nil)
 }
 
 // --- GetCurrent ---
@@ -155,7 +155,7 @@ func TestWS_ReceivesValidBPM(t *testing.T) {
 	defer s.Close()
 
 	e := echo.New()
-	e.GET("/ws", NewHandler(buf, s).WS)
+	e.GET("/ws", NewHandler(buf, s, nil, nil).WS)
 	srv := httptest.NewServer(e)
 	defer srv.Close()
 
@@ -195,7 +195,7 @@ func TestWS_InvalidJSON(t *testing.T) {
 	defer s.Close()
 
 	e := echo.New()
-	e.GET("/ws", NewHandler(buf, s).WS)
+	e.GET("/ws", NewHandler(buf, s, nil, nil).WS)
 	srv := httptest.NewServer(e)
 	defer srv.Close()
 

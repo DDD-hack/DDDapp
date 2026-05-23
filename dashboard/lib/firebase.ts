@@ -1,5 +1,6 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
+import { getFirestore, type Firestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -42,3 +43,11 @@ export const app: FirebaseApp | null = isFirebaseConfigured
 
 /** Firebase Authentication インスタンス。未設定時は null。 */
 export const auth: Auth | null = app ? getAuth(app) : null;
+
+/**
+ * Firestore インスタンス。未設定時は null。
+ *
+ * Vercel 等のクラウド環境で、ローカル daemon への WebSocket が到達できない場合の
+ * フォールバック取得経路として `useDaemon` / `useCommits` から使う。
+ */
+export const db: Firestore | null = app ? getFirestore(app) : null;
