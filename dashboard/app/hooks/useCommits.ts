@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import {
-  collection,
-  getDocs,
-  limit as fsLimit,
-  orderBy,
+  get,
+  limitToLast,
+  orderByChild,
   query,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
+  ref as dbRef,
+} from "firebase/database";
+import { rtdb } from "@/lib/firebase";
 import { useAuth } from "../auth/AuthProvider";
 
 const DAEMON_BASE = process.env.NEXT_PUBLIC_DAEMON_URL || "http://localhost:8765";
@@ -24,40 +24,49 @@ export type CommitRecord = {
 };
 
 /**
- * Firestore の users/{uid}/commits から CommitRecord 形式で取得する。
+ * RTDB の commits/{uid} から CommitRecord 形式で取得する。
  * ローカル daemon の HTTP API が到達できないクラウド環境（Vercel 等）でのフォールバック。
+ *
+ * RTDB はネイティブの desc ソートを持たないため、`orderByChild("attempted_at")` で昇順
+ * インデックスを使い、`limitToLast(n)` で末尾 n 件（= 最新 n 件・昇順）を取り、
+ * 配列化後に reverse して降順に並べ替える。
  */
-async function fetchFromFirestore(uid: string, n: number): Promise<CommitRecord[]> {
-  if (!db) return [];
+async function fetchFromRtdb(uid: string, n: number): Promise<CommitRecord[]> {
+  if (!rtdb) return [];
   const q = query(
-    collection(db, "users", uid, "commits"),
-    orderBy("attemptedAt", "desc"),
-    fsLimit(n),
+    dbRef(rtdb, `commits/${uid}`),
+    orderByChild("attempted_at"),
+    limitToLast(n),
   );
-  const snap = await getDocs(q);
-  const validDocs = snap.docs.filter((d) => {
-    const data = d.data();
-    return data && data.attemptedAt && typeof data.attemptedAt.toDate === "function";
-  });
-  return validDocs.map((d, i) => {
-    const data = d.data() as {
-      repoPath?: string;
-      commitHash?: string;
+  const snap = await get(q);
+  if (!snap.exists()) return [];
+
+  const records: CommitRecord[] = [];
+  let idx = 0;
+  snap.forEach((child) => {
+    const data = child.val() as {
+      repo_path?: string;
+      commit_hash?: string;
       bpm?: number;
       result?: string;
-      attemptedAt: { toDate: () => Date };
-    };
-    const attemptedAt = data.attemptedAt.toDate();
-    return {
-      // Firestore に数値 ID は無いので、表示順を担保するために配列 index を充てる
-      id: i,
-      repo_path: data.repoPath ?? "",
-      commit_hash: data.commitHash ?? "",
+      attempted_at?: number;
+    } | null;
+    if (!data) return false;
+    const attemptedAtMs =
+      typeof data.attempted_at === "number" ? data.attempted_at : null;
+    records.push({
+      // RTDB の push-id は文字列なので、表示順を担保するため配列 index を充てる
+      id: idx++,
+      repo_path: data.repo_path ?? "",
+      commit_hash: data.commit_hash ?? "",
       bpm: typeof data.bpm === "number" ? data.bpm : 0,
       result: data.result === "rejected" ? "rejected" : "accepted",
-      attempted_at: attemptedAt.toISOString(),
-    };
+      attempted_at: attemptedAtMs ? new Date(attemptedAtMs).toISOString() : "",
+    });
+    return false;
   });
+  // snap.forEach は orderByChild の昇順を保つ。降順表示用に反転。
+  return records.reverse();
 }
 
 export function useCommits(limit = 100) {
@@ -91,16 +100,16 @@ export function useCommits(limit = 100) {
       } catch (err) {
         if (err instanceof Error && err.name === "AbortError") return;
 
-        // ローカル daemon に届かない: ログイン済みなら Firestore へフォールバック
-        if (uid && db) {
+        // ローカル daemon に届かない: ログイン済み & RTDB 設定済みならフォールバック
+        if (uid && rtdb) {
           try {
-            const cloudData = await fetchFromFirestore(uid, limit);
+            const cloudData = await fetchFromRtdb(uid, limit);
             if (!cancelled) {
               setCommits(cloudData);
               setError(false);
             }
           } catch (cloudErr) {
-            console.error("firestore commits fallback:", cloudErr);
+            console.error("rtdb commits fallback:", cloudErr);
             if (!cancelled) setError(true);
           }
         } else if (!cancelled) {

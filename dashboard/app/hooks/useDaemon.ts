@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { doc, onSnapshot, type Unsubscribe } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { onValue, ref as dbRef } from "firebase/database";
+import { rtdb } from "@/lib/firebase";
 import { useAuth } from "../auth/AuthProvider";
 
 const DAEMON_WS = process.env.NEXT_PUBLIC_DAEMON_WS_URL || "ws://localhost:8765/ws/vscode";
 const RECONNECT_DELAY = 5000;
-/** WS が切れてから Firestore フォールバックへ切り替えるまでの待ち時間。 */
+/** WS が切れてから RTDB フォールバックへ切り替えるまでの待ち時間。 */
 const FALLBACK_DELAY = 3000;
-/** Firestore 経由で読んだ bpmUpdatedAt がこれ以上古ければ stale とみなす。 */
+/** RTDB から読んだ updated_at がこれ以上古ければ stale とみなす。 */
 const CLOUD_STALE_MS = 10000;
 
 export type ConnectionStatus = "connecting" | "connected" | "disconnected" | "cloud";
@@ -61,43 +61,42 @@ export function useDaemon(): DaemonState {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const unsubFirestoreRef = useRef<Unsubscribe | null>(null);
+  const unsubRtdbRef = useRef<(() => void) | null>(null);
   const unmountedRef = useRef(false);
 
-  // Firestore フォールバックの開始/停止 ----------------------------------------
+  // RTDB フォールバックの開始/停止 --------------------------------------------
 
-  function stopFirestoreFallback() {
-    if (unsubFirestoreRef.current) {
-      unsubFirestoreRef.current();
-      unsubFirestoreRef.current = null;
+  function stopRtdbFallback() {
+    if (unsubRtdbRef.current) {
+      unsubRtdbRef.current();
+      unsubRtdbRef.current = null;
     }
   }
 
-  function startFirestoreFallback(uid: string) {
-    if (unsubFirestoreRef.current || !db) return;
+  function startRtdbFallback(uid: string) {
+    if (unsubRtdbRef.current || !rtdb) return;
     setStatus("cloud");
-    const ref = doc(db, "users", uid);
-    unsubFirestoreRef.current = onSnapshot(
-      ref,
+    const r = dbRef(rtdb, `users/${uid}`);
+    unsubRtdbRef.current = onValue(
+      r,
       (snap) => {
-        const data = snap.data();
+        const data = snap.val() as
+          | { current_bpm?: number; updated_at?: number }
+          | null;
         if (!data) {
           setBpm(null);
           setStale(true);
           return;
         }
-        const cloudBpm = typeof data.currentBpm === "number" ? data.currentBpm : null;
-        const updatedAt =
-          data.bpmUpdatedAt && typeof data.bpmUpdatedAt.toDate === "function"
-            ? (data.bpmUpdatedAt.toDate() as Date)
-            : null;
-        const ageMs = updatedAt ? Date.now() - updatedAt.getTime() : Infinity;
+        const cloudBpm = typeof data.current_bpm === "number" ? data.current_bpm : null;
+        const updatedAtMs = typeof data.updated_at === "number" ? data.updated_at : null;
+        const ageMs = updatedAtMs ? Date.now() - updatedAtMs : Infinity;
         const isStale = cloudBpm == null || ageMs > CLOUD_STALE_MS;
         setStale(isStale);
         setBpm(isStale ? null : cloudBpm);
       },
       (err) => {
-        console.error("firestore onSnapshot:", err);
+        console.error("rtdb onValue:", err);
       },
     );
   }
@@ -124,7 +123,7 @@ export function useDaemon(): DaemonState {
           clearTimeout(fallbackTimerRef.current);
           fallbackTimerRef.current = null;
         }
-        stopFirestoreFallback();
+        stopRtdbFallback();
         setStatus("connected");
         sendAuthSync(ws, userRef.current);
       });
@@ -162,14 +161,14 @@ export function useDaemon(): DaemonState {
         setBpm(null);
         reconnectTimerRef.current = setTimeout(connect, RECONNECT_DELAY);
 
-        // 切断が FALLBACK_DELAY 続いたら、ログイン中ユーザー & Firestore 設定済みなら
+        // 切断が FALLBACK_DELAY 続いたら、ログイン中ユーザー & RTDB 設定済みなら
         // クラウド経由のリアルタイム購読へフォールバック
         if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
         fallbackTimerRef.current = setTimeout(() => {
           fallbackTimerRef.current = null;
           const u = userRef.current;
-          if (u && db) {
-            startFirestoreFallback(u.uid);
+          if (u && rtdb) {
+            startRtdbFallback(u.uid);
           }
         }, FALLBACK_DELAY);
       });
@@ -185,7 +184,7 @@ export function useDaemon(): DaemonState {
       unmountedRef.current = true;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
-      stopFirestoreFallback();
+      stopRtdbFallback();
       wsRef.current?.close();
     };
     // 接続は一度だけ確立する。ユーザー変更は別 effect で auth_sync 経由で反映する。
@@ -194,13 +193,11 @@ export function useDaemon(): DaemonState {
   // ユーザー変更時の追従 -----------------------------------------------------
   //   - 最新 user を ref に反映（WS コールバックから参照される）
   //   - WS が open ならその場で auth_sync を再送
-  //   - Firestore フォールバック中なら購読先 uid を切替（user が null なら停止）
-  // user 不在時の bpm リセットは setState in effect を避けるためここでは行わない。
-  // フォールバック停止後は、次の onSnapshot / WS メッセージ受信時に値が更新される。
+  //   - RTDB フォールバック中なら購読先 uid を切替（user が null なら停止）
   useEffect(() => {
     userRef.current = user;
     sendAuthSync(wsRef.current, user);
-    
+
     // Clear displayed state asynchronously to avoid set-state-in-effect warning
     setTimeout(() => {
       if (unmountedRef.current) return;
@@ -211,10 +208,10 @@ export function useDaemon(): DaemonState {
       }
     }, 0);
 
-    if (unsubFirestoreRef.current) {
-      stopFirestoreFallback();
-      if (user && db) {
-        startFirestoreFallback(user.uid);
+    if (unsubRtdbRef.current) {
+      stopRtdbFallback();
+      if (user && rtdb) {
+        startRtdbFallback(user.uid);
       }
     }
   }, [user]);
