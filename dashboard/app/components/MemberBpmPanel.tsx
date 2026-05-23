@@ -1,73 +1,136 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  useFirebaseHeartbeat,
-  type MemberHeartbeat,
-} from "../hooks/useFirebaseHeartbeat";
+import { useFirebaseHeartbeat } from "../hooks/useFirebaseHeartbeat";
+import { useAuth } from "../auth/AuthProvider";
 
-function elapsed(updatedAt: number | null): { label: string; live: boolean } {
-  if (updatedAt === null) return { label: "--", live: false };
-  const secs = Math.floor((Date.now() - updatedAt) / 1000);
-  const live = secs <= 10;
-  if (secs < 60) return { label: `${secs}s ago`, live };
-  return { label: `${Math.floor(secs / 60)}m ago`, live };
+const THRESHOLD = 120;
+
+type StatusTier = "live" | "warn" | "offline";
+
+function getStatus(updatedAt: number | null): StatusTier {
+  if (updatedAt === null) return "offline";
+  const sec = Math.floor((Date.now() - updatedAt) / 1000);
+  if (sec < 60) return "live";
+  if (sec < 1800) return "warn";
+  return "offline";
 }
 
-function MemberCard({ member }: { member: MemberHeartbeat }) {
-  const [, tick] = useState(0);
+function formatElapsed(updatedAt: number | null): string {
+  if (updatedAt === null) return "──";
+  const sec = Math.floor((Date.now() - updatedAt) / 1000);
+  if (sec < 60) return "たった今";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}分前`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}時間前`;
+  return `${Math.floor(hr / 24)}日前`;
+}
 
-  useEffect(() => {
-    const id = setInterval(() => tick((n) => n + 1), 1000);
-    return () => clearInterval(id);
-  }, []);
+const STATUS_ICON: Record<StatusTier, string> = {
+  live: "🔥",
+  warn: "💀",
+  offline: "──",
+};
 
-  const { label, live } = elapsed(member.updatedAt);
-  const bpmColor =
-    member.bpm === null
-      ? "text-zinc-600"
-      : member.bpm > 120
-        ? "text-red-500"
-        : "text-blue-400";
+const STATUS_COLOR: Record<StatusTier, string> = {
+  live: "text-green-400",
+  warn: "text-orange-400",
+  offline: "text-zinc-600",
+};
 
-  return (
-    <div className="bg-[#1A1A2E] rounded-2xl px-4 py-3 flex items-center justify-between gap-4">
-      <div>
-        <div className="text-xs text-zinc-400">{member.name}</div>
-        <div className={`text-3xl font-black ${bpmColor}`}>
-          {member.bpm ?? "--"}
-        </div>
-      </div>
-      <div className="text-right">
-        {live ? (
-          <div className="flex items-center gap-1 text-green-400 text-[10px] font-semibold">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-            LIVE
-          </div>
-        ) : (
-          <div className="text-[10px] text-zinc-600">{label}</div>
-        )}
-      </div>
-    </div>
-  );
+const BPM_COLOR = (bpm: number | null) => {
+  if (bpm === null) return "text-zinc-600";
+  return bpm > THRESHOLD ? "text-red-400" : "text-blue-400";
+};
+
+function getMockMembers() {
+  const now = Date.now();
+  return [
+    { uid: "_mock_a", name: "メンバーA", bpm: 142, updatedAt: now - 5_000 },
+    { uid: "_mock_b", name: "メンバーB", bpm: 89,  updatedAt: now - 1_000 * 60 * 3 },
+    { uid: "_mock_c", name: "メンバーC", bpm: 156, updatedAt: now - 1_000 * 60 * 120 },
+  ];
 }
 
 export function MemberBpmPanel() {
-  const members = useFirebaseHeartbeat();
+  const realMembers = useFirebaseHeartbeat();
+  const { user, configured } = useAuth();
+  const [, tick] = useState(0);
+
+  const visible = !configured || !!user;
+
+  useEffect(() => {
+    if (!visible) return;
+    const id = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [visible]);
+
+  if (!visible) return null;
+
+  const isDev = process.env.NODE_ENV === "development";
+  const members = realMembers.length > 0 ? realMembers : isDev ? getMockMembers() : [];
 
   return (
-    <div className="flex flex-col gap-3 min-w-[200px]">
-      <h2 className="text-[10px] font-semibold tracking-widest text-zinc-600">
-        MEMBER BPM
+    <div className="w-full">
+      <h2 className="text-[10px] font-semibold tracking-widest text-zinc-600 mb-3">
+        MEMBER HEARTBEATS
+        {isDev && realMembers.length === 0 && (
+          <span className="ml-2 text-zinc-700 normal-case font-normal tracking-normal">
+            (mock)
+          </span>
+        )}
       </h2>
+
       {members.length === 0 ? (
-        <div className="text-xs text-zinc-700">データなし</div>
+        <p className="text-xs text-zinc-700 px-4 py-3">メンバーデータを読み込み中...</p>
       ) : (
-        <div className="flex flex-col gap-2">
-          {members.map((m) => (
-            <MemberCard key={m.uid} member={m} />
-          ))}
-        </div>
+        <>
+          {/* Table header */}
+          <div className="grid grid-cols-[1fr_6rem_5rem_2.5rem] px-3 py-2 text-[10px] tracking-widest text-zinc-600 border-b border-zinc-800">
+            <span>メンバー</span>
+            <span className="text-right">BPM</span>
+            <span className="text-right">最終更新</span>
+            <span className="text-right">状態</span>
+          </div>
+
+          {/* Member rows */}
+          <div className="divide-y divide-zinc-900">
+            {members.map((m) => {
+              const tier = getStatus(m.updatedAt);
+              const bpmColor = BPM_COLOR(m.bpm);
+
+              return (
+                <div
+                  key={m.uid}
+                  className="grid grid-cols-[1fr_6rem_5rem_2.5rem] items-center px-3 py-3"
+                >
+                  <span className="text-sm text-zinc-300 truncate">{m.name}</span>
+
+                  <div className={`flex items-baseline justify-end gap-1 tabular-nums ${bpmColor}`}>
+                    <span className="text-base">♥</span>
+                    <span className="text-xl font-black">
+                      {m.bpm !== null ? m.bpm : "--"}
+                    </span>
+                    <span className="text-[10px] text-zinc-600">bpm</span>
+                  </div>
+
+                  <span
+                    className={`text-xs font-mono text-right ${
+                      tier === "live" ? "text-zinc-400" : "text-zinc-600"
+                    }`}
+                  >
+                    {formatElapsed(m.updatedAt)}
+                  </span>
+
+                  <span className={`text-sm text-right ${STATUS_COLOR[tier]}`}>
+                    {STATUS_ICON[tier]}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );
