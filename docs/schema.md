@@ -40,12 +40,13 @@
 
 | フィールド名   | 型          | 説明                                                                         | 例                         |
 | :------------- | :---------- | :--------------------------------------------------------------------------- | :------------------------- |
-| `repoName`     | `string`    | コミット対象のリポジトリ名                                                   | `"ddd"`                    |
-| `repoKeyHash`  | `string`    | ローカルパスを SHA-256 でハッシュした匿名識別子（8文字）                     | `"a3f9c1b2"`               |
+| `repoName`     | `string`    | コミット対象のリポジトリ名。**不変**。                                       | `"ddd"`                    |
+| `repoKeyHash`  | `string`    | ローカルパスを SHA-256 でハッシュした匿名識別子（8文字）。**不変**。         | `"a3f9c1b2"`               |
+| `commitHash`   | `string`    | Git コミットハッシュ（SHA-1 40文字）。**不変**。                             | `"a1b2c3d4e5f6..."`        |
 | `bpm`          | `number`    | コミット時の心拍数（BPM）                                                    | `132`                      |
 | `result`       | `string`    | 判定結果（`"accepted"` / `"rejected"`）                                      | `"accepted"`               |
 | `isPublic`     | `boolean`   | collectionGroup でのランキング公開可否。**デフォルト `false`**（非公開）。    | `false`                    |
-| `attemptedAt`  | `timestamp` | コミットが試行された日時                                                     | `2026-05-23T04:15:30Z`     |
+| `attemptedAt`  | `timestamp` | コミットが試行された日時。**不変**。                                         | `2026-05-23T04:15:30Z`     |
 
 > **repoPath はクラウド同期対象外**: ユーザー名・端末構成などの機微情報を含むため Firestore には保存しない。
 > daemon がローカルで `SHA-256(repoPath)[:8]` を計算し `repoKeyHash` として送信する。
@@ -102,8 +103,12 @@ service cloud.firestore {
 
         allow create: if request.auth != null
           && request.auth.uid == userId
+          // allowlist: スキーマ定義外フィールドの書き込みを禁止
+          && request.resource.data.keys().hasOnly(['repoName', 'repoKeyHash', 'commitHash', 'bpm', 'result', 'isPublic', 'attemptedAt'])
           // 必須フィールドの存在確認
-          && request.resource.data.keys().hasAll(['repoName', 'repoKeyHash', 'bpm', 'result', 'isPublic', 'attemptedAt'])
+          && request.resource.data.keys().hasAll(['repoName', 'repoKeyHash', 'commitHash', 'bpm', 'result', 'isPublic', 'attemptedAt'])
+          // commitHash は string
+          && request.resource.data.commitHash is string
           // bpm は 1〜300 の範囲
           && request.resource.data.bpm is int
           && request.resource.data.bpm >= 1
@@ -115,6 +120,10 @@ service cloud.firestore {
 
         allow update: if request.auth != null
           && request.auth.uid == userId
+          // allowlist: スキーマ定義外フィールドの追加・変更を禁止
+          && request.resource.data.keys().hasOnly(['repoName', 'repoKeyHash', 'commitHash', 'bpm', 'result', 'isPublic', 'attemptedAt'])
+          // commitHash は string
+          && request.resource.data.commitHash is string
           // bpm は 1〜300 の範囲
           && request.resource.data.bpm is int
           && request.resource.data.bpm >= 1
@@ -123,7 +132,10 @@ service cloud.firestore {
           && request.resource.data.result in ['accepted', 'rejected']
           // isPublic は boolean のみ（true/false の切り替えを許可）
           && request.resource.data.isPublic is bool
-          // attemptedAt は不変（作成後に変更不可）
+          // 不変フィールド（作成後に変更不可）
+          && request.resource.data.repoName == resource.data.repoName
+          && request.resource.data.repoKeyHash == resource.data.repoKeyHash
+          && request.resource.data.commitHash == resource.data.commitHash
           && request.resource.data.attemptedAt == resource.data.attemptedAt;
       }
     }
