@@ -5,7 +5,8 @@ import { onValue, ref as dbRef } from "firebase/database";
 import { rtdb } from "@/lib/firebase";
 import { useAuth } from "../auth/AuthProvider";
 
-const DAEMON_WS = process.env.NEXT_PUBLIC_DAEMON_WS_URL || "ws://localhost:8765/ws/vscode";
+// 末尾スラッシュを削っておく (URL 結合で // にならないように)
+const DAEMON_WS = (process.env.NEXT_PUBLIC_DAEMON_WS_URL || "ws://localhost:8765/ws/vscode").replace(/\/+$/, "");
 const RECONNECT_DELAY = 5000;
 /** WS が切れてから RTDB フォールバックへ切り替えるまでの待ち時間。 */
 const FALLBACK_DELAY = 3000;
