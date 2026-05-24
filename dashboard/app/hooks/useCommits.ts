@@ -11,7 +11,9 @@ import {
 import { rtdb } from "@/lib/firebase";
 import { useAuth } from "../auth/AuthProvider";
 
-const DAEMON_BASE = process.env.NEXT_PUBLIC_DAEMON_URL || "http://localhost:8765";
+const DAEMON_BASE = (
+  process.env.NEXT_PUBLIC_DAEMON_URL || "http://localhost:8765"
+).replace(/\/+$/, "");
 const POLL_INTERVAL = 15_000;
 
 export type CommitRecord = {
