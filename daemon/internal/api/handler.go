@@ -1,15 +1,20 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/kotaro/ddd/daemon/internal/discord"
 	"github.com/kotaro/ddd/daemon/internal/hrm"
 	"github.com/kotaro/ddd/daemon/internal/store"
 	"github.com/labstack/echo/v4"
@@ -69,19 +74,83 @@ var upgrader = websocket.Upgrader{
 }
 
 type Handler struct {
-	buf *hrm.Buffer
-	db  *store.Store
+	buf     *hrm.Buffer
+	db      *store.Store
+	fs      *store.FirestoreClient // nil 可: Firestore 未設定時（現状は未使用、将来用に残置）
+	rtdb    *store.RTDBClient      // nil 可: RTDB 未設定時
+	session *Session
+
+	discordWebhookURL string // 空文字なら通知しない
+	thresholdBPM      int    // コミット許可の閾値（デフォルト 120）
 
 	mu          sync.Mutex
 	vscodeConns []*websocket.Conn
 }
 
-func NewHandler(buf *hrm.Buffer, db *store.Store) *Handler {
-	return &Handler{
-		buf:         buf,
-		db:          db,
-		vscodeConns: make([]*websocket.Conn, 0),
+func NewHandler(buf *hrm.Buffer, db *store.Store, fs *store.FirestoreClient, rtdb *store.RTDBClient, session *Session) *Handler {
+	if session == nil {
+		session = NewSession()
 	}
+	return &Handler{
+		buf:          buf,
+		db:           db,
+		fs:           fs,
+		rtdb:         rtdb,
+		session:      session,
+		thresholdBPM: 120,
+		vscodeConns:  make([]*websocket.Conn, 0),
+	}
+}
+
+// SetDiscordWebhookURL configures the Discord webhook URL for commit notifications.
+// An empty string disables notifications.
+func (h *Handler) SetDiscordWebhookURL(u string) { h.discordWebhookURL = u }
+
+// SetThresholdBPM sets the BPM threshold used for notification labels.
+// Must match DDD_THRESHOLD_BPM to keep labels consistent with commit acceptance.
+// Falls back to 120 if t <= 0.
+func (h *Handler) SetThresholdBPM(t int) {
+	if t <= 0 {
+		t = 120
+	}
+	h.thresholdBPM = t
+}
+
+// Session returns the active dashboard session (uid / displayName holder).
+// 起動時の broadcast goroutine から参照したいので exported にしている。
+func (h *Handler) Session() *Session {
+	return h.session
+}
+
+// FirestoreClient returns the active Firestore client (may be nil).
+func (h *Handler) FirestoreClient() *store.FirestoreClient {
+	return h.fs
+}
+
+// RTDBClient returns the active Realtime Database client (may be nil).
+func (h *Handler) RTDBClient() *store.RTDBClient {
+	return h.rtdb
+}
+
+// WriteCurrentBpmToRTDB は 1Hz の broadcast ループから呼ばれる想定で、
+// users/{uid}/current_bpm を RTDB に書き込む。uid 未設定や RTDB nil なら no-op。
+// 呼び出し側を絶対にブロックしないため goroutine で投げる。
+func (h *Handler) WriteCurrentBpmToRTDB(bpm int) {
+	if h.rtdb == nil {
+		return
+	}
+	uid, _, ok := h.session.Current()
+	if !ok {
+		return
+	}
+	go func(uid string, bpm int) {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := h.rtdb.SetCurrentBpm(ctx, uid, bpm); err != nil {
+			// fail-open: ローカル機能は動き続けるので warn だけ
+			log.Printf("rtdb: set current_bpm: %v", err)
+		}
+	}(uid, bpm)
 }
 
 // WS handles WebSocket connections from the iPhone app.
@@ -120,6 +189,11 @@ func (h *Handler) WS(c echo.Context) error {
 		if err := h.db.SaveSample(ctx, payload.BPM, "apple_watch"); err != nil {
 			c.Logger().Warnf("ws: save sample: %v", err)
 		}
+
+		// 注意: BPM の RTDB 書き込みはここでは行わない。
+		// main.go の 1Hz broadcast ループが Buffer.Average() を取って
+		// h.WriteCurrentBpmToRTDB() を呼ぶことで、Apple Watch の送信レートに
+		// 依存せず常に 1Hz で /users/{uid}/current_bpm を更新する。
 	}
 	return nil
 }
@@ -155,10 +229,44 @@ func (h *Handler) PostCommit(c echo.Context) error {
 		"bpm":    req.BPM,
 	})
 
+	uid, displayName, hasSession := h.session.Current()
+	parent := c.Request().Context()
+
+	// RTDB へのバックグラウンド書き込み（uid 既知のときのみ）。
+	// /commits/{uid} 配下に push-id 付きでコミット結果を追記する。
+	if h.rtdb != nil && hasSession {
+		go func(parent context.Context, uid, repoPath, hash, result string, bpm int) {
+			ctx, cancel := context.WithTimeout(parent, 5*time.Second)
+			defer cancel()
+			if err := h.rtdb.AddCommit(ctx, uid, repoPath, hash, bpm, result); err != nil {
+				log.Printf("rtdb: add commit: %v", err)
+			}
+		}(parent, uid, req.RepoPath, req.CommitHash, req.Result, req.BPM)
+	}
+
+	// Discord 通知（webhook 未設定なら no-op）。
+	if h.discordWebhookURL != "" {
+		threshold := h.thresholdBPM
+		go func() {
+			ctx, cancel := context.WithTimeout(parent, 5*time.Second)
+			defer cancel()
+			if err := discord.Send(ctx, h.discordWebhookURL, commitPayload(displayName, req.RepoPath, req.CommitHash, req.Result, req.BPM, threshold)); err != nil {
+				log.Printf("discord: %v", err)
+			}
+		}()
+	}
+
 	return c.JSON(http.StatusCreated, map[string]string{"status": "ok"})
 }
 
-// VscodeWS handles WebSocket connections from the VS Code extension.
+// VscodeWS handles WebSocket connections from the dashboard / VS Code extension.
+//
+// 受信メッセージ:
+//
+//	{"type":"auth_sync","uid":"<firebase-uid>","displayName":"<name>"}
+//	  -> 現在アクティブな uid を session に記録する。空 uid は Clear と等価。
+//
+// それ以外のメッセージは無視する。
 func (h *Handler) VscodeWS(c echo.Context) error {
 	conn, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
 	if err != nil {
@@ -182,11 +290,41 @@ func (h *Handler) VscodeWS(c echo.Context) error {
 	}()
 
 	for {
-		if _, _, err := conn.ReadMessage(); err != nil {
+		_, message, err := conn.ReadMessage()
+		if err != nil {
 			break
 		}
+		h.handleVscodeMessage(c, message)
 	}
 	return nil
+}
+
+// handleVscodeMessage は dashboard / VS Code 拡張からの JSON メッセージを処理する。
+// 解析エラーや未知の type は単にスキップ（fail-open）。
+func (h *Handler) handleVscodeMessage(c echo.Context, message []byte) {
+	var env struct {
+		Type        string `json:"type"`
+		UID         string `json:"uid"`
+		DisplayName string `json:"displayName"`
+	}
+	if err := json.Unmarshal(message, &env); err != nil {
+		return
+	}
+	switch env.Type {
+	case "auth_sync":
+		h.session.SetAuth(env.UID, env.DisplayName)
+		if env.UID != "" {
+			mask := func(s string) string {
+				if len(s) <= 6 {
+					return "***"
+				}
+				return s[:3] + "..." + s[len(s)-3:]
+			}
+			c.Logger().Infof("auth_sync received: uid=%s name=%q", mask(env.UID), mask(env.DisplayName))
+		} else {
+			c.Logger().Infof("auth_sync cleared")
+		}
+	}
 }
 
 // BroadcastVscode sends a JSON message to all connected VS Code extensions.
@@ -252,6 +390,53 @@ func (h *Handler) GetHeartRateHistory(c echo.Context) error {
 		rows = []store.HeartRateSample{}
 	}
 	return c.JSON(http.StatusOK, rows)
+}
+
+// commitPayload builds a Discord embed for a commit result.
+func commitPayload(displayName, repoPath, commitHash, result string, bpm, threshold int) discord.Payload {
+	color := 0x2ECC71 // green
+	title := "✅ COMMIT ACCEPTED"
+	if result != "accepted" {
+		color = 0xE74C3C // red
+		title = "💀 COMMIT REJECTED"
+	}
+
+	name := displayName
+	if name == "" {
+		name = "unknown"
+	}
+	repo := filepath.Base(repoPath)
+	hash := commitHash
+	if len(hash) > 7 {
+		hash = hash[:7]
+	}
+	if hash == "" {
+		hash = "—"
+	}
+
+	bpmLabel := fmt.Sprintf("%d bpm", bpm)
+	switch {
+	case bpm > 150:
+		bpmLabel += " 🔥"
+	case bpm >= threshold:
+		bpmLabel += " 💪"
+	default:
+		bpmLabel += " 😰"
+	}
+
+	return discord.Payload{
+		Embeds: []discord.Embed{{
+			Title: title,
+			Color: color,
+			Fields: []discord.Field{
+				{Name: "Developer", Value: name, Inline: true},
+				{Name: "BPM", Value: bpmLabel, Inline: true},
+				{Name: "Repo", Value: repo, Inline: true},
+				{Name: "Hash", Value: "`" + hash + "`", Inline: true},
+			},
+			Footer: &discord.Footer{Text: "DOKI DOKI DEVELOPMENT"},
+		}},
+	}
 }
 
 // GetCurrent returns the current average BPM for the git hook.

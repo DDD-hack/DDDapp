@@ -60,6 +60,9 @@ companion/.swiftpm/
 .env.local
 .env.*.local
 **/google-services.json
+**/firebase-credentials*.json
+**/firebase-adminsdk-*.json
+**/service-account*.json
 **/*.pem
 **/*.p8
 **/*.p12
@@ -76,3 +79,4 @@ companion/.swiftpm/
 Thumbs.db
 .idea/
 # .vscode/  <- tracked for shared extension settings
+untitled.pen

@@ -1,14 +1,75 @@
 {
+  // launch.json の preLaunchTask が参照するビルドタスク。
+  // ここでは bun を直接叩く(本プロジェクトは npm ではなく bun を使うため)。
+  //
+  //   compile-extension : 一度だけビルドして終了。F5 の前準備
+  //   watch-extension   : 常駐で保存のたびに自動ビルド。Cmd+Shift+P → Run Task で起動
+  //
+  // ⚠️ PATH の補完について:
+  //   VS Code のタスクランナーは ~/.zshrc 等のシェル初期化を読まないので、
+  //   mise でインストールした bun が見えないことがある (exit code 127)。
+  //   options.env.PATH で代表的な場所を先頭に足して解決する。
+  //
+  // 詳細: docs/vscode-ext-debugging.md
   "version": "2.0.0",
   "tasks": [
     {
-      "type": "npm",
-      "script": "compile",
-      "path": "vscode-ext/",
+      "label": "compile-extension",
+      "type": "shell",
+      "command": "bun",
+      "args": ["run", "compile"],
+      "options": {
+        "cwd": "${workspaceFolder}/vscode-ext",
+        "env": {
+          "PATH": "${env:HOME}/.local/share/mise/shims:${env:HOME}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${env:PATH}"
+        }
+      },
       "problemMatcher": ["$tsc"],
       "group": {
         "kind": "build",
         "isDefault": true
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": true
+      }
+    },
+    {
+      "label": "watch-extension",
+      "type": "shell",
+      "command": "bun",
+      "args": ["run", "watch"],
+      "options": {
+        "cwd": "${workspaceFolder}/vscode-ext",
+        "env": {
+          "PATH": "${env:HOME}/.local/share/mise/shims:${env:HOME}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${env:PATH}"
+        }
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": [
+          {
+            "regexp": "^([^\\s].*)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\):\\s+(error|warning|info)\\s+(TS\\d+)\\s*:\\s*(.*)$",
+            "file": 1,
+            "location": 2,
+            "severity": 3,
+            "code": 4,
+            "message": 5
+          }
+        ],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "."
+        }
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "panel": "dedicated"
       }
     }
   ]
