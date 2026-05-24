@@ -3,9 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import { onValue, ref as dbRef } from "firebase/database";
 import { rtdb } from "@/lib/firebase";
+import { isCloudEnvironment } from "@/lib/env";
 import { useAuth } from "../auth/AuthProvider";
 
-const DAEMON_WS = process.env.NEXT_PUBLIC_DAEMON_WS_URL || "ws://localhost:8765/ws/vscode";
+// 末尾スラッシュを削っておく (URL 結合で // にならないように)
+const DAEMON_WS = (
+  process.env.NEXT_PUBLIC_DAEMON_WS_URL || "ws://localhost:8765/ws/vscode"
+).replace(/\/+$/, "");
 const RECONNECT_DELAY = 5000;
 /** WS が切れてから RTDB フォールバックへ切り替えるまでの待ち時間。 */
 const FALLBACK_DELAY = 3000;
@@ -101,11 +105,31 @@ export function useDaemon(): DaemonState {
     );
   }
 
-  // WebSocket 接続 -----------------------------------------------------------
-
+  // 起動時 ──────────────────────────────────────────────
+  // クラウド環境 (Vercel 等)  : WS 接続を試みず即 RTDB 経路に
+  // ローカル開発時             : WS-first、3 秒切断したら RTDB フォールバック
   useEffect(() => {
     unmountedRef.current = false;
 
+    if (isCloudEnvironment()) {
+      // クラウド: ws://localhost に繋ぎに行ってもエラーが出るだけなのでスキップ。
+      // setStatus を effect 直下で呼ぶと React の set-state-in-effect 警告に
+      // 引っかかるので setTimeout(...,0) でマイクロタスクに逃がす。
+      setTimeout(() => {
+        if (unmountedRef.current) return;
+        setStatus("cloud");
+        const u = userRef.current;
+        if (u && rtdb) {
+          startRtdbFallback(u.uid);
+        }
+      }, 0);
+      return () => {
+        unmountedRef.current = true;
+        stopRtdbFallback();
+      };
+    }
+
+    // ローカル: 従来通り WebSocket を張る
     function connect() {
       if (unmountedRef.current) return;
       setStatus("connecting");
@@ -191,13 +215,29 @@ export function useDaemon(): DaemonState {
   }, []);
 
   // ユーザー変更時の追従 -----------------------------------------------------
-  //   - 最新 user を ref に反映（WS コールバックから参照される）
-  //   - WS が open ならその場で auth_sync を再送
-  //   - RTDB フォールバック中なら購読先 uid を切替（user が null なら停止）
+  //   ローカル: WS が open ならその場で auth_sync を再送
+  //   クラウド: RTDB の購読先 uid を切替（user が null なら停止）
   useEffect(() => {
     userRef.current = user;
-    sendAuthSync(wsRef.current, user);
 
+    if (isCloudEnvironment()) {
+      // クラウド: 常に RTDB のみが情報源
+      stopRtdbFallback();
+      if (user && rtdb) {
+        startRtdbFallback(user.uid);
+      } else {
+        // ログアウト時に表示をリセット
+        setTimeout(() => {
+          if (unmountedRef.current) return;
+          setBpm(null);
+          setStale(true);
+        }, 0);
+      }
+      return;
+    }
+
+    // ローカル
+    sendAuthSync(wsRef.current, user);
     // Clear displayed state asynchronously to avoid set-state-in-effect warning
     setTimeout(() => {
       if (unmountedRef.current) return;
@@ -207,7 +247,6 @@ export function useDaemon(): DaemonState {
         setStatus("disconnected");
       }
     }, 0);
-
     if (unsubRtdbRef.current) {
       stopRtdbFallback();
       if (user && rtdb) {

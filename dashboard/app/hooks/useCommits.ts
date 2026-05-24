@@ -9,8 +9,10 @@ import {
   ref as dbRef,
 } from "firebase/database";
 import { rtdb } from "@/lib/firebase";
+import { isCloudEnvironment } from "@/lib/env";
 import { useAuth } from "../auth/AuthProvider";
 
+// 末尾スラッシュを削って "http://localhost:8765//commits" の事故を防ぐ
 const DAEMON_BASE = (
   process.env.NEXT_PUBLIC_DAEMON_URL || "http://localhost:8765"
 ).replace(/\/+$/, "");
@@ -27,11 +29,16 @@ export type CommitRecord = {
 
 /**
  * RTDB の commits/{uid} から CommitRecord 形式で取得する。
- * ローカル daemon の HTTP API が到達できないクラウド環境（Vercel 等）でのフォールバック。
+ * ローカル daemon の HTTP API が到達できないクラウド環境（Vercel 等）でのフォールバック、
+ * またはクラウド環境での通常経路として使う。
  *
  * RTDB はネイティブの desc ソートを持たないため、`orderByChild("attempted_at")` で昇順
  * インデックスを使い、`limitToLast(n)` で末尾 n 件（= 最新 n 件・昇順）を取り、
  * 配列化後に reverse して降順に並べ替える。
+ *
+ * 注意: この query が動くには Firebase RTDB ルールに
+ *   `commits/{uid}/.indexOn: ["attempted_at"]` が必要。
+ *   詳細は docs/firebase-database-design.md 参照。
  */
 async function fetchFromRtdb(uid: string, n: number): Promise<CommitRecord[]> {
   if (!rtdb) return [];
@@ -85,25 +92,43 @@ export function useCommits(limit = 100) {
     let inFlight = false;
     let controller: AbortController | null = null;
 
+    // クラウド環境（Vercel 等）ではローカル daemon に届かないので即 RTDB 経由にする。
+    // ローカル開発時のみ HTTP fetch → 失敗時 RTDB の従来フローを使う。
+    const cloud = isCloudEnvironment();
+
     async function fetch_() {
       if (inFlight || cancelled) return;
       inFlight = true;
       controller = new AbortController();
       try {
-        const res = await fetch(`${DAEMON_BASE}/commits?limit=${limit}`, {
-          signal: controller.signal,
-        });
-        if (!res.ok) throw new Error(`status ${res.status}`);
-        const data: CommitRecord[] = await res.json();
-        if (!cancelled) {
-          setCommits(data);
-          setError(false);
+        if (cloud) {
+          // クラウド: localhost への fetch は試さず RTDB から直接取得
+          if (uid && rtdb) {
+            const cloudData = await fetchFromRtdb(uid, limit);
+            if (!cancelled) {
+              setCommits(cloudData);
+              setError(false);
+            }
+          } else if (!cancelled) {
+            setError(true);
+          }
+        } else {
+          // ローカル: daemon 直叩き → 失敗時 RTDB フォールバック
+          const res = await fetch(`${DAEMON_BASE}/commits?limit=${limit}`, {
+            signal: controller.signal,
+          });
+          if (!res.ok) throw new Error(`status ${res.status}`);
+          const data: CommitRecord[] = await res.json();
+          if (!cancelled) {
+            setCommits(data);
+            setError(false);
+          }
         }
       } catch (err) {
         if (err instanceof Error && err.name === "AbortError") return;
 
-        // ローカル daemon に届かない: ログイン済み & RTDB 設定済みならフォールバック
-        if (uid && rtdb) {
+        // ローカル fetch 失敗時のみフォールバック試行
+        if (!cloud && uid && rtdb) {
           try {
             const cloudData = await fetchFromRtdb(uid, limit);
             if (!cancelled) {
@@ -115,6 +140,7 @@ export function useCommits(limit = 100) {
             if (!cancelled) setError(true);
           }
         } else if (!cancelled) {
+          console.error("commits fetch:", err);
           setError(true);
         }
       } finally {
