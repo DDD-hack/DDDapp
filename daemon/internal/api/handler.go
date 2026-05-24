@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -18,59 +16,14 @@ import (
 	"github.com/kotaro/ddd/daemon/internal/hrm"
 	"github.com/kotaro/ddd/daemon/internal/store"
 	"github.com/labstack/echo/v4"
-	"github.com/spf13/viper"
 )
 
+// upgrader allows all origins because this daemon is a localhost-only service
+// (never exposed to the internet). Clients are the iPhone app (no Origin header),
+// the browser dashboard (http://localhost:3000), and the VS Code extension
+// (vscode-webview://<id>). There are no cookies, so CSRF is not a concern.
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		origin := r.Header.Get("Origin")
-		// iPhone native app sends no Origin header — allow empty.
-		if origin == "" {
-			return true
-		}
-		u, err := url.Parse(origin)
-		if err != nil {
-			return false
-		}
-		host := u.Hostname()
-
-		// Localhost and internal loopback origins are always allowed.
-		if host == "localhost" || host == "127.0.0.1" || host == "::1" {
-			return true
-		}
-
-		// Dynamically validate against ALLOWED_ORIGINS env variable
-		allowedOriginsStr := viper.GetString("ALLOWED_ORIGINS")
-		if allowedOriginsStr != "" {
-			for _, allowed := range strings.Split(allowedOriginsStr, ",") {
-				trimmed := strings.TrimSpace(allowed)
-				if trimmed == "" {
-					continue
-				}
-				parsedAllowed, err := url.Parse(trimmed)
-				if err == nil {
-					allowedHost := parsedAllowed.Hostname()
-					if allowedHost == host {
-						return true
-					}
-					// Support simple wildcard suffixes (e.g. *.vercel.app -> strings.HasSuffix)
-					if strings.HasPrefix(allowedHost, "*.") {
-						suffix := allowedHost[1:] // e.g. ".vercel.app"
-						if strings.HasSuffix(host, suffix) {
-							return true
-						}
-					}
-				} else {
-					// Fallback to exact match if parsing as URL fails
-					if trimmed == host {
-						return true
-					}
-				}
-			}
-		}
-
-		return false
-	},
+	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
 type Handler struct {
