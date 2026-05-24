@@ -63,6 +63,7 @@ companion/.swiftpm/
 **/firebase-credentials*.json
 **/firebase-adminsdk-*.json
 **/service-account*.json
+**/serviceAccount*.json
 **/*.pem
 **/*.p8
 **/*.p12
