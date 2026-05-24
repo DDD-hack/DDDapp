@@ -57,7 +57,10 @@ for (const commit of commits) {
   } catch {
     continue;
   }
-  const match = body.match(/^\s*DDD-BPM:\s*(\d+)/m);
+  // 正しい trailer は "DDD-BPM:"(D 3 つ)。
+  // ただし古い prepare-commit-msg hook が "DDDD-BPM:"(D 4 つ)で書いていた
+  // 過去コミットが既に存在するので、後方互換として 4 つ目の D も optional に。
+  const match = body.match(/^\s*DDDD?-BPM:\s*(\d+)/m);
   if (!match) continue;
 
   data.push({
