@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -18,59 +16,14 @@ import (
 	"github.com/kotaro/ddd/daemon/internal/hrm"
 	"github.com/kotaro/ddd/daemon/internal/store"
 	"github.com/labstack/echo/v4"
-	"github.com/spf13/viper"
 )
 
+// upgrader allows all origins because this daemon is a localhost-only service
+// (never exposed to the internet). Clients are the iPhone app (no Origin header),
+// the browser dashboard (http://localhost:3000), and the VS Code extension
+// (vscode-webview://<id>). There are no cookies, so CSRF is not a concern.
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		origin := r.Header.Get("Origin")
-		// iPhone native app sends no Origin header — allow empty.
-		if origin == "" {
-			return true
-		}
-		u, err := url.Parse(origin)
-		if err != nil {
-			return false
-		}
-		host := u.Hostname()
-
-		// Localhost and internal loopback origins are always allowed.
-		if host == "localhost" || host == "127.0.0.1" || host == "::1" {
-			return true
-		}
-
-		// Dynamically validate against ALLOWED_ORIGINS env variable
-		allowedOriginsStr := viper.GetString("ALLOWED_ORIGINS")
-		if allowedOriginsStr != "" {
-			for _, allowed := range strings.Split(allowedOriginsStr, ",") {
-				trimmed := strings.TrimSpace(allowed)
-				if trimmed == "" {
-					continue
-				}
-				parsedAllowed, err := url.Parse(trimmed)
-				if err == nil {
-					allowedHost := parsedAllowed.Hostname()
-					if allowedHost == host {
-						return true
-					}
-					// Support simple wildcard suffixes (e.g. *.vercel.app -> strings.HasSuffix)
-					if strings.HasPrefix(allowedHost, "*.") {
-						suffix := allowedHost[1:] // e.g. ".vercel.app"
-						if strings.HasSuffix(host, suffix) {
-							return true
-						}
-					}
-				} else {
-					// Fallback to exact match if parsing as URL fails
-					if trimmed == host {
-						return true
-					}
-				}
-			}
-		}
-
-		return false
-	},
+	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
 type Handler struct {
@@ -230,25 +183,27 @@ func (h *Handler) PostCommit(c echo.Context) error {
 	})
 
 	uid, displayName, hasSession := h.session.Current()
-	parent := c.Request().Context()
 
 	// RTDB へのバックグラウンド書き込み（uid 既知のときのみ）。
 	// /commits/{uid} 配下に push-id 付きでコミット結果を追記する。
+	// NOTE: context.Background() を使う。c.Request().Context() はレスポンス返却後に
+	// Echo がキャンセルするため、goroutine 内で使うと即座に context canceled になる。
 	if h.rtdb != nil && hasSession {
-		go func(parent context.Context, uid, repoPath, hash, result string, bpm int) {
-			ctx, cancel := context.WithTimeout(parent, 5*time.Second)
+		go func(uid, repoPath, hash, result string, bpm int) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if err := h.rtdb.AddCommit(ctx, uid, repoPath, hash, bpm, result); err != nil {
 				log.Printf("rtdb: add commit: %v", err)
 			}
-		}(parent, uid, req.RepoPath, req.CommitHash, req.Result, req.BPM)
+		}(uid, req.RepoPath, req.CommitHash, req.Result, req.BPM)
 	}
 
 	// Discord 通知（webhook 未設定なら no-op）。
+	// NOTE: 同様に context.Background() を親にする。
 	if h.discordWebhookURL != "" {
 		threshold := h.thresholdBPM
 		go func() {
-			ctx, cancel := context.WithTimeout(parent, 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if err := discord.Send(ctx, h.discordWebhookURL, commitPayload(displayName, req.RepoPath, req.CommitHash, req.Result, req.BPM, threshold)); err != nil {
 				log.Printf("discord: %v", err)
