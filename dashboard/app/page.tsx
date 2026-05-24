@@ -8,8 +8,14 @@ import { CommitFeed } from "./components/CommitFeed";
 import { CommitChart } from "./components/CommitChart";
 import { PassionRanking } from "./components/PassionRanking";
 import { AuthButton } from "./components/AuthButton";
-import { LoginPromptBanner } from "./components/LoginPromptBanner";
+import { SuccessRateCard } from "./components/SuccessRateCard";
+import { MostPassionateCommit } from "./components/MostPassionateCommit";
+import { MemberBpmPanel } from "./components/MemberBpmPanel";
+import { ContributionHeatmap } from "./components/ContributionHeatmap";
 import { useAuth } from "./auth/AuthProvider";
+import { LoginPromptBanner } from "./components/LoginPromptBanner";
+import { LoginScreen } from "./components/LoginScreen";
+import { RankingTab } from "./components/RankingTab";
 
 const STATUS_LABEL: Record<string, string> = {
   connected: "● LIVE",
@@ -29,7 +35,26 @@ const STATUS_COLOR: Record<string, string> = {
 export default function Home() {
   const { bpm, stale, status, commits } = useDaemon();
   const { commits: history, error: historyError } = useCommits(100);
-  const { user, configured } = useAuth();
+  const [activeTab, setActiveTab] = useState<"today" | "cumulative" | "ranking">("today");
+  const { user, loading, configured, isMember } = useAuth();
+
+  // 認証確認中はローディング画面を表示（ダッシュボードへのフォールスルーを防ぐ）
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-black text-white flex items-center justify-center">
+        <p className="text-xs tracking-widest text-zinc-600 animate-pulse">認証状態を確認中...</p>
+      </main>
+    );
+  }
+
+  // 未ログイン → ログイン画面
+  if (configured && !user) {
+    return <LoginScreen />;
+  }
+  // ログイン済みだが未登録メンバー → エラー付きログイン画面
+  if (configured && user && !isMember) {
+    return <LoginScreen isUnauthorized email={user.email} />;
+  }
 
   const accepted = commits.filter((c) => c.result === "accepted").length;
   const rejected = commits.filter((c) => c.result === "rejected").length;
@@ -164,25 +189,22 @@ export default function Home() {
           {/* Most passionate commit */}
           {!historyError && <MostPassionateCommit commits={history} />}
 
-      {/* Login Prompt Banner — 未ログイン時のみ表示（コンポーネント内で出し分け） */}
-      <LoginPromptBanner />
+          {/* Success rate - All Time Gauge only */}
+          {!historyError && <SuccessRateCard commits={history} mode="cumulative" />}
 
-      {/* History chart + Passion ranking */}
-      {!historyError && (
-        <section className="border-t border-zinc-900 px-8 py-6 flex flex-col xl:flex-row gap-8">
-          <div className="flex-1 min-w-0">
-            <h2 className="text-[10px] font-semibold tracking-widest text-zinc-600 mb-4">
-              COMMIT HISTORY
-            </h2>
-            <CommitChart commits={history} />
-          </div>
-          <div className="xl:w-96">
-            <h2 className="text-[10px] font-semibold tracking-widest text-zinc-600 mb-4">
-              PASSION RANKING
-            </h2>
-            <PassionRanking commits={history} />
-          </div>
-        </section>
+          {/* Passion ranking */}
+          {!historyError && (
+            <section className="border-t border-zinc-900 px-8 py-6">
+              <h2 className="text-[10px] font-semibold tracking-widest text-zinc-600 mb-4">
+                PASSION RANKING
+              </h2>
+              <PassionRanking commits={history} />
+            </section>
+          )}
+
+          {/* Contribution Heatmap */}
+          {!historyError && <ContributionHeatmap commits={history} />}
+        </>
       )}
 
       {/* Body: Ranking Tab */}
