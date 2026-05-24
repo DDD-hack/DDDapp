@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -92,16 +94,26 @@ func (c *FirestoreClient) UpsertUserBpm(ctx context.Context, uid, displayName st
 
 // AddUserCommit は users/{uid}/commits に新規ドキュメントを追加する。
 // uid が空、または nil レシーバなら何もしない。
+//
+// プライバシー設計:
+//   - repoPath（絶対パス）は Firestore に送信しない。
+//   - 代わりに SHA-256(repoPath) の先頭 8 文字を repoKeyHash として保存する。
+//   - isPublic はデフォルト false。collectionGroup での他ユーザーへの公開は
+//     将来的にユーザーが明示的に true に変更した場合のみ許可する。
 func (c *FirestoreClient) AddUserCommit(ctx context.Context, uid, repoPath, commitHash string, bpm int, result string) error {
 	if c == nil || c.cli == nil || uid == "" {
 		return nil
 	}
+	sum := sha256.Sum256([]byte(repoPath))
+	repoKeyHash := hex.EncodeToString(sum[:])[:8]
+
 	doc := map[string]any{
 		"repoName":    filepath.Base(repoPath),
-		"repoPath":    repoPath,
+		"repoKeyHash": repoKeyHash,
 		"commitHash":  commitHash,
 		"bpm":         bpm,
 		"result":      result,
+		"isPublic":    false,
 		"attemptedAt": time.Now().UTC(),
 	}
 	if _, _, err := c.cli.Collection("users").Doc(uid).Collection("commits").Add(ctx, doc); err != nil {
