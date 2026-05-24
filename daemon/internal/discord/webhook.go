@@ -32,6 +32,7 @@ type Payload struct {
 }
 
 // Send POSTs payload to webhookURL. Returns nil immediately if webhookURL is empty.
+// Discord への送信に失敗してもコミットは妨げない（fail-safe）。
 func Send(ctx context.Context, webhookURL string, p Payload) error {
 	if webhookURL == "" {
 		return nil
