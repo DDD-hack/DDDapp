@@ -73,8 +73,8 @@ export default function Home() {
         </div>
         <div className="flex items-center gap-5">
           {configured && user && (
-            <span className="text-[10px] font-mono tracking-widest text-emerald-500 border border-emerald-950 bg-emerald-950/20 px-2 py-0.5 rounded animate-pulse">
-              ☁ CLOUD SYNC
+            <span className="text-[10px] font-mono tracking-widest text-green-400 border border-green-950 bg-green-950/20 px-2 py-0.5 rounded">
+              ☁ CLOUD ACTIVE
             </span>
           )}
           <span className={`text-xs font-mono font-semibold tracking-widest ${STATUS_COLOR[status]}`}>
