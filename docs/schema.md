@@ -38,14 +38,18 @@
 
 - `{commitId}`: 自動生成されるドキュメント ID、またはコミットハッシュ
 
-| フィールド名  | 型          | 説明                                         | 例                       |
-| :------------ | :---------- | :------------------------------------------- | :----------------------- |
-| `repoName`    | `string`    | コミット対象のリポジトリ名                   | `"ddd"`                  |
-| `repoPath`    | `string`    | ローカルでのリポジトリ絶対パス               | `"/Users/kotaro/ddd"`    |
-| `bpm`         | `number`    | コミット時の心拍数（BPM）                    | `132`                    |
-| `result`      | `string`    | 判定結果（`"accepted"` / `"rejected"`）       | `"accepted"`             |
-| `attemptedAt` | `timestamp` | コミットが試行された日時                     | `2026-05-23T04:15:30Z`   |
+| フィールド名   | 型          | 説明                                                       | 例                         |
+| :------------- | :---------- | :--------------------------------------------------------- | :------------------------- |
+| `repoName`     | `string`    | コミット対象のリポジトリ名                                 | `"ddd"`                    |
+| `repoKeyHash`  | `string`    | ローカルパスを SHA-256 でハッシュした匿名識別子（8文字）   | `"a3f9c1b2"`               |
+| `bpm`          | `number`    | コミット時の心拍数（BPM）                                  | `132`                      |
+| `result`       | `string`    | 判定結果（`"accepted"` / `"rejected"`）                    | `"accepted"`               |
+| `attemptedAt`  | `timestamp` | コミットが試行された日時                                   | `2026-05-23T04:15:30Z`     |
 
+> **repoPath はクラウド同期対象外**: ユーザー名・端末構成などの機微情報を含むため Firestore には保存しない。
+> daemon がローカルで `SHA-256(repoPath)[:8]` を計算し `repoKeyHash` として送信する。
+> ローカルの SQLite には引き続き `repo_path` を保持してよい。
+>
 > **命名規則メモ**: Firestore は camelCase、ローカル SQLite は snake_case（`attempted_at` 等）を採用する。
 > 同期層（daemon → Firestore）で変換を行う。
 
@@ -91,16 +95,40 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
 
       // コミット履歴
+      // 書き込み時はスキーマ検証も行う（型・範囲・不変フィールド）
       match /commits/{commitId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read: if request.auth != null && request.auth.uid == userId;
+
+        allow create: if request.auth != null
+          && request.auth.uid == userId
+          // 必須フィールドの存在確認
+          && request.resource.data.keys().hasAll(['repoName', 'repoKeyHash', 'bpm', 'result', 'attemptedAt'])
+          // bpm は 1〜300 の範囲
+          && request.resource.data.bpm is int
+          && request.resource.data.bpm >= 1
+          && request.resource.data.bpm <= 300
+          // result は列挙値のみ許可
+          && request.resource.data.result in ['accepted', 'rejected'];
+
+        allow update: if request.auth != null
+          && request.auth.uid == userId
+          // bpm は 1〜300 の範囲
+          && request.resource.data.bpm is int
+          && request.resource.data.bpm >= 1
+          && request.resource.data.bpm <= 300
+          // result は列挙値のみ許可
+          && request.resource.data.result in ['accepted', 'rejected']
+          // attemptedAt は不変（作成後に変更不可）
+          && request.resource.data.attemptedAt == resource.data.attemptedAt;
       }
     }
 
     // collectionGroup("commits") クエリでチームランキングを取得する場合のルール。
-    // 認証済みユーザーには他人の commits も読み取り可とする（ハッカソンの共有スコープ前提）。
-    // 本番では「公開可フラグ」「チーム ID」等で絞ること。
+    // isPublic == true のドキュメントのみ認証済みユーザーが読み取り可。
+    // 本番では teamId 一致や公開フラグで必ず絞ること（認証済み全員への開放は禁止）。
     match /{path=**}/commits/{commitId} {
-      allow read: if request.auth != null;
+      allow read: if request.auth != null
+        && resource.data.isPublic == true;
     }
 
     // 集計済みランキング（書き込みは Cloud Functions などサーバー側のみ）

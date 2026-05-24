@@ -32,7 +32,11 @@ export function LoginPromptBanner() {
 
         <button
           type="button"
-          onClick={signIn}
+          onClick={() => {
+            void signIn().catch(() => {
+              // ポップアップキャンセル等は AuthProvider 側で処理済み
+            });
+          }}
           className="shrink-0 flex items-center gap-2 text-xs font-mono font-black tracking-widest text-black bg-gradient-to-r from-red-500 to-amber-500 hover:from-red-400 hover:to-amber-400 px-5 py-2.5 rounded-md shadow-[0_0_20px_rgba(239,68,68,0.25)] transition-all duration-300 hover:shadow-[0_0_30px_rgba(239,68,68,0.4)] transform hover:scale-[1.02] active:scale-[0.98]"
         >
           <span>GOOGLE LOGIN</span>
