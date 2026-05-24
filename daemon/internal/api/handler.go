@@ -183,25 +183,27 @@ func (h *Handler) PostCommit(c echo.Context) error {
 	})
 
 	uid, displayName, hasSession := h.session.Current()
-	parent := c.Request().Context()
 
 	// RTDB へのバックグラウンド書き込み（uid 既知のときのみ）。
 	// /commits/{uid} 配下に push-id 付きでコミット結果を追記する。
+	// NOTE: context.Background() を使う。c.Request().Context() はレスポンス返却後に
+	// Echo がキャンセルするため、goroutine 内で使うと即座に context canceled になる。
 	if h.rtdb != nil && hasSession {
-		go func(parent context.Context, uid, repoPath, hash, result string, bpm int) {
-			ctx, cancel := context.WithTimeout(parent, 5*time.Second)
+		go func(uid, repoPath, hash, result string, bpm int) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if err := h.rtdb.AddCommit(ctx, uid, repoPath, hash, bpm, result); err != nil {
 				log.Printf("rtdb: add commit: %v", err)
 			}
-		}(parent, uid, req.RepoPath, req.CommitHash, req.Result, req.BPM)
+		}(uid, req.RepoPath, req.CommitHash, req.Result, req.BPM)
 	}
 
 	// Discord 通知（webhook 未設定なら no-op）。
+	// NOTE: 同様に context.Background() を親にする。
 	if h.discordWebhookURL != "" {
 		threshold := h.thresholdBPM
 		go func() {
-			ctx, cancel := context.WithTimeout(parent, 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if err := discord.Send(ctx, h.discordWebhookURL, commitPayload(displayName, req.RepoPath, req.CommitHash, req.Result, req.BPM, threshold)); err != nil {
 				log.Printf("discord: %v", err)

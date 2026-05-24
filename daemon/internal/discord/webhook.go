@@ -59,4 +59,3 @@ func Send(ctx context.Context, webhookURL string, p Payload) error {
 	}
 	return nil
 }
-// BPM: 135 on 2026年 5月24日 日曜日 11時54分31秒 JST
